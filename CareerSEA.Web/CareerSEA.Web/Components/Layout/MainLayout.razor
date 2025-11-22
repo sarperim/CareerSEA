@@ -1,0 +1,90 @@
+﻿@inherits LayoutComponentBase
+@using MudBlazor.Utilities
+@using MudBlazor
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    @* We don't use MudAppBar or MudDrawer for this centered-card design *@
+    <MudMainContent>
+        @* The transparent background for MudMainContent is set in the CSS file (Step 2) *@
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private MudTheme _myCustomTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            // --- Map your CSS variables to MudBlazor's Palette ---
+
+            // --primary: #10b981
+            Primary = new MudColor("#10b981"),
+            // --primary-foreground: #ffffff
+            PrimaryContrastText = new MudColor("#ffffff"),
+
+            // --text-default: #0f172a
+            TextPrimary = new MudColor("#0f172a"),
+            // --text-muted: #64748b
+            TextSecondary = new MudColor("#64748b"),
+            TextDisabled = new MudColor("#64748b"),
+
+            // --card: #ffffff
+            Surface = new MudColor("#ffffff"), // This is the background for Cards/Paper
+
+            // --background-mid: #ffffff
+            Background = new MudColor("#ffffff"), // Default background for most things
+
+
+            // --border: #e2e8f0
+            LinesDefault = new MudColor("#e2e8f0"), // Default border color
+            LinesInputs = new MudColor("#e2e8f0"),  // Input border color
+
+            // -- A color for the second button
+            Secondary = new MudColor("#64748b"), // Using your 'text-muted' color
+            SecondaryContrastText = new MudColor("#ffffff"),
+
+            // -- Set the hover color explicitly
+        },
+        Typography = new Typography()
+        {
+            // Use the same font stack as your CSS
+            Default = new DefaultTypography()
+            {
+                FontFamily = new[] { "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif" }
+            }
+        },
+        LayoutProperties = new LayoutProperties()
+        {
+            // Match your --border-radius: 0.75rem for the main card
+            DefaultBorderRadius = "0.75rem"
+        }
+    };
+}
+
+@*@inherits LayoutComponentBase
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+*@

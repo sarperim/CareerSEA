@@ -1,0 +1,30 @@
+var builder = DistributedApplication.CreateBuilder(args);
+
+var apiService = builder.AddProject<Projects.CareerSEA_ApiService>("apiservice")
+    .WithHttpHealthCheck("/health");
+
+var webfrontend = builder.AddProject<Projects.CareerSEA_Web>("webfrontend")
+    .WithExternalHttpEndpoints()
+    .WithHttpHealthCheck("/health")
+    .WithReference(apiService)
+    .WaitFor(apiService);
+
+//var dbPassword = builder.AddParameter("postgres-password", secret: true);
+var postgres = builder.AddPostgres("postgres")
+    //.WithImage("ankane/pgvector")
+    .WithDataVolume();
+
+var postgresdb = postgres.AddDatabase("webAppDb");
+
+builder.AddContainer("pgadmin", "dpage/pgadmin4")
+    .WithHttpEndpoint(targetPort: 80, name: "pgadmin-http")
+    .WithEnvironment("PGADMIN_DEFAULT_EMAIL", "sarp.ercan@metu.edu.tr")
+    .WithEnvironment("PGADMIN_DEFAULT_PASSWORD", "0000")
+    .WithVolume("pgadmin-data", "/var/lib/pgadmin")
+    .WithReference(postgres);
+
+apiService.WithReference(postgresdb);
+webfrontend.WithReference(postgresdb);
+
+builder.Build().Run();
+
