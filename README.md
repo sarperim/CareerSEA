@@ -1,4 +1,4 @@
-# CareerSEA 🌊
+# 🌊 CareerSEA 
 
 ![Status](https://img.shields.io/badge/status-development-orange)
 ![.NET](https://img.shields.io/badge/.NET-9.0-purple)
