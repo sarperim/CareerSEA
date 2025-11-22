@@ -1,4 +1,56 @@
-Problem Description
-Career choice is one of the most important decisions made by a person in his/her life. If not done carefully, one may suffer from low job satisfaction, financial loss, and career misalignment, resulting in constant job hopping, which does not look promising on any curriculum. The need for career counselors has increased over time to help confused recent graduates due to the rapidly changing and emerging career trends, and former employees in understanding if their skills and opportunities are matching. However, such a service is expensive or offered via basic and inefficient keyword matching, opening a gap that this project can address. CareerSEA is a web application that utilizes the latest AI technologies to provide a personalized career prediction.
-Design Approach
-We are building a polyglot (C# and Python) cloud native distributed system with a service-based architecture. We choose this approach because it supports parallel development, and the result is more scalable compared to regular monolithic architectures, and it also supports development in multiple languages. We will create a Blazor Auto Render frontend, a web API with Swagger UI, and the AI model will utilize the paper CareerBERT  (Rosenberger et al., 2025) approach, but we will use a much bigger dataset to fine-tune the model, cosine similarity to compare the job and user data embeddings, and PostgreSQL to store user data for a dynamic web application. On top of these technologies, we use Aspire to orchestrate these separate containers.
+# CareerSEA 🌊
+
+![Status](https://img.shields.io/badge/status-development-orange)
+![.NET](https://img.shields.io/badge/.NET-9.0-purple)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![Aspire](https://img.shields.io/badge/Aspire-Orchestration-green)
+
+**CareerSEA** is a cloud-native web application that uses advanced AI to provide personalized career predictions, helping graduates and professionals navigate the job market with confidence.
+
+---
+
+## The Problem
+Career counseling is often expensive, static, or based on ineffective keyword matching. This leads to misalignment, low job satisfaction, and constant "job hopping."
+
+##  The Solution
+We bridge the gap by offering accessible, data-driven career guidance.
+* **Personalized AI:** Uses **CareerBERT** (Rosenberger et al., 2025) and **Cosine Similarity** to match user resumes against a massive dataset of job descriptions.
+* **Dynamic & Scalable:** A polyglot distributed system designed for parallel development and high availability.
+
+---
+
+## Tech Stack
+
+We utilize a **Service-Based Architecture** orchestrated by **.NET Aspire**:
+
+| Component | Tech | Role |
+| :--- | :--- | :--- |
+| **Frontend** | **Blazor Auto** | Hybrid rendering for a fast, interactive UI. |
+| **Backend** | **ASP.NET Core** | REST API with Swagger UI. |
+| **AI Engine** | **Python (FastAPI)** | Fine-tuned CareerBERT model for vector embeddings. |
+| **Database** | **PostgreSQL** | Stores user profiles and career data. |
+| **Orchestration** | **.NET Aspire** | Manages containers and service discovery. |
+
+---
+
+## Quick Start
+
+This project uses **.NET Aspire** to spin up the frontend, backend, AI service, and database simultaneously.
+
+1.  **Clone the repo:**
+    ```bash
+    git clone [https://github.com/yourusername/CareerSEA.git](https://github.com/yourusername/CareerSEA.git)
+    ```
+2.  **Install Python dependencies:**
+    ```bash
+    pip install -r src/CareerSEA.AI/requirements.txt
+    ```
+3.  **Run the AppHost:**
+    ```bash
+    dotnet run --project src/CareerSEA.AppHost
+    ```
+
+---
+
+### 📚 References
+* Rosenberger, J., et al. (2025). *CareerBERT: Matching Resumes to ESCO Jobs*.
