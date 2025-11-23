@@ -2,6 +2,7 @@
 using CareerSEA.Contracts.Responses;
 using CareerSEA.Services.Interfaces;
 using CareerSEA.Services.Services;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -28,6 +29,17 @@ namespace CareerSEA.ApiService.Controllers
                 return BadRequest("User Exist.");
             }
             return Ok(user);
+        }
+
+        [HttpPost("Login")]
+        public async Task<ActionResult<BaseResponse>> Login(LoginRequest request)
+        {
+            var tokens = await _authService.LoginAsync(request);
+            if (tokens == null)
+            {
+                return BadRequest("Invalid Username or Password");
+            }
+            return Ok(tokens);
         }
 
     }

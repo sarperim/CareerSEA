@@ -13,6 +13,8 @@ namespace CareerSEA.Data.Entities
         public string LastName { get; set; }
         public string UserName { get; set; }
         public string PasswordHash { get; set; }
+        public string? RefreshToken { get; set; }
+        public DateTime? RefreshTokenExpiry { get; set; }
 
         public ICollection<Experience> Experiences { get; set; } = new List<Experience>();
         public ICollection<Prediction> Predictions { get; set; } = new List<Prediction>();
