@@ -1,4 +1,6 @@
 using CareerSEA.Data;
+using CareerSEA.Services.Interfaces;
+using CareerSEA.Services.Services;
 using Microsoft.EntityFrameworkCore;
 using System;
 
@@ -8,6 +10,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 builder.AddNpgsqlDbContext<CareerSEADbContext>("webAppDb");
+builder.Services.AddScoped<IAuthService, AuthService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
