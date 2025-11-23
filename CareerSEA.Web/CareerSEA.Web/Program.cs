@@ -1,3 +1,4 @@
+using CareerSEA.Web;
 using CareerSEA.Web.Client.Pages;
 using CareerSEA.Web.Components;
 using Microsoft.Extensions.Hosting;
@@ -8,6 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.AddServiceDefaults();
+builder.Services.AddHttpClient<ApiClient>(client =>
+{
+    client.BaseAddress = new("https+http://apiservice");
+});
 
 builder.Services.AddMudServices();
 builder.Services.AddMudExtensions();
