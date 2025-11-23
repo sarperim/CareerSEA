@@ -10,7 +10,7 @@ namespace CareerSEA.Data.Entities
     {
         public Guid Id { get; set; }
         public Guid UserId { get; set; } //FK
-        public int ESCOId { get; set; } //FK
+        public int? ESCOId { get; set; } //FK
         public string Title { get; set; }
         public string Skills { get; set; }
         public string Description { get; set; }

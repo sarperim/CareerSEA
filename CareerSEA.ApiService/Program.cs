@@ -15,6 +15,7 @@ builder.AddServiceDefaults();
 
 builder.AddNpgsqlDbContext<CareerSEADbContext>("webAppDb");
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IExperiencePredictionService, ExperiencePredictionService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
