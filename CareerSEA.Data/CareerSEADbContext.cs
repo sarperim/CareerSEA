@@ -19,6 +19,8 @@ namespace CareerSEA.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+
+            modelBuilder.HasPostgresExtension("vector");
             // 1. User -> Experience (One-to-Many)
             modelBuilder.Entity<User>()
                 .HasMany(u => u.Experiences)
