@@ -22,7 +22,7 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
-        Title = "Wallet API",
+        Title = "CareerSEA API",
         Version = "v1"
     });
 
