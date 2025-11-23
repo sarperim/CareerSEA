@@ -11,5 +11,6 @@ namespace CareerSEA.Services.Interfaces
     public interface IAuthService
     {
         public Task<BaseResponse> RegisterAsync(SignupRequest request);
+        public Task<BaseResponse?> LoginAsync(LoginRequest request);
     }
 }
