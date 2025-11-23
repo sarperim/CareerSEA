@@ -33,6 +33,18 @@ We utilize a **Service-Based Architecture** orchestrated by **.NET Aspire**:
 
 ---
 
+## Team & Responsibilities
+
+CareerSEA is a collaborative effort combining Full Stack Engineering with advanced ML research.
+
+| Team Member | Focus Area | Key Responsibilities |
+| :--- | :--- | :--- |
+| **Sarp** | **Full Stack & DevOps** | Blazor Frontend, ASP.NET Backend, .NET Aspire Orchestration, Docker Management, Database Design, and Cloud Deployment. |
+| **Emir** | **AI Engineering** | Fine-tuning the CareerBERT model and implementing Cosine Similarity algorithms. |
+| **Alphan** | **AI Engineering** | Fine-tuning the CareerBERT model and implementing Cosine Similarity algorithms. |
+
+---
+
 ## Quick Start
 
 This project uses **.NET Aspire** to spin up the frontend, backend, AI service, and database simultaneously.
