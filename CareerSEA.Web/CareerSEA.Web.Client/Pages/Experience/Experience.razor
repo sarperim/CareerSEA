@@ -1,7 +1,7 @@
-﻿@*
-@page "/experience"
+﻿@page "/experience"
 @rendermode InteractiveAuto
 @using CareerSEA.Contracts
+@using CareerSEA.Contracts.Requests
 @using CareerSEA.Contracts.Responses
 @using MudExtensions
 @using Newtonsoft.Json
@@ -53,7 +53,7 @@
 
             <MudText Typo="Typo.h6" GutterBottom="true">Add New Experience</MudText>
 
-            <EditForm Model="@model" OnValidSubmit="HandleValidSubmit" FormName="ExperienceForm">
+            <EditForm Model="@model" @* OnValidSubmit="HandleValidSubmit" *@ FormName="ExperienceForm">
                 <DataAnnotationsValidator />
 
                 <MudGrid Spacing="3">
@@ -122,9 +122,9 @@
     </MudCard>
 </MudContainer>
 @code {
-    public IList<ExperienceModel> experienceModels { get; set; }
+    public IList<ExperienceRequest> experienceModels { get; set; }
     [SupplyParameterFromForm(FormName = "ExperienceForm")]
-    public ExperienceDTO model { get; set; } = new();
+    public ExperienceRequest model { get; set; } = new();
 
     private string[] _jobTitles =
     {
@@ -147,7 +147,7 @@
     {
         await LoadExperiencesAsync();
     }
-
+/*
     private async Task HandleValidSubmit()
     {
         if (!_jobTitles.Contains(model.Title))
@@ -156,8 +156,7 @@
             return;
         }
 
-        var result = await apiClient.PostAsJsonAsync<ExperienceDTO, BaseResponse>("/api/Experience/SaveForm", model);
-
+         var result = await ApiClient.PostAsync<ExperienceRequest, BaseResponse>("/api/Experience/SaveForm", model);
         if (result.Success)
         {
             model = new();
@@ -169,14 +168,14 @@
             Snackbar.Add("Error saving experience.", Severity.Error);
         }
     }
-
+*/
     private async Task LoadExperiencesAsync()
     {
         var result = await apiClient.GetAsync<BaseResponse>("/api/Experience/GetForms");
         if (result != null && result.Status)
         {
-            experienceModels = JsonConvert.DeserializeObject<List<ExperienceModel>>(result.Data.ToString());
+            experienceModels = JsonConvert.DeserializeObject<List<ExperienceRequest>>(result.Data.ToString());
             StateHasChanged();
         }
     }
-}*@
+}
