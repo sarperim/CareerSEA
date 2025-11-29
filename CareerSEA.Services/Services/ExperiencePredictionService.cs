@@ -20,9 +20,26 @@ namespace CareerSEA.Services.Services
         {
             _dbContext = dbContext;
         }
-        public Task<List<Experience>> GetForms()
+        public async Task<BaseResponse> GetForms(Guid userId)
         {
-            throw new NotImplementedException();
+            var existingUser = await _dbContext.Experiences.FirstOrDefaultAsync(a => a.UserId == userId);
+            if (existingUser == null)
+            {
+                return new BaseResponse
+                {
+                    Status = false,
+                    Message = "Error"
+                };
+            }
+            var relatedData = await _dbContext.Experiences
+                              .Where(o => o.UserId == userId)
+                              .ToListAsync();
+            return new BaseResponse
+            {
+                Status = true,
+                Message = "Success",
+                Data = relatedData
+            };
         }
 
         public async Task<BaseResponse> SaveForm(ExperienceRequest response,Guid userId)

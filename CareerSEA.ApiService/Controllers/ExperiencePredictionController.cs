@@ -33,7 +33,10 @@ namespace CareerSEA.ApiService.Controllers
         [HttpGet("GetForms")]
         public async Task<ActionResult<BaseResponse>> GetForms()
         {
-            var forms = await _eps.GetForms();
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                     return Unauthorized(); ;
+            var forms = await _eps.GetForms(Guid.Parse(userIdClaim));
             return Ok(new BaseResponse { Status = true, Data = forms });
         }
     }

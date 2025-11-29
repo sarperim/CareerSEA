@@ -1,21 +1,24 @@
 ﻿@page "/"
+@rendermode InteractiveServer
 @using System.ComponentModel.DataAnnotations
+@using System.Text.Json.Serialization
 @using MudBlazor
+
+@* Injecting the same services as your Signup page *@
+@inject ApiClient apiClient
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 
-@* NOTE: I removed '@rendermode InteractiveServer' from here because 
-   it is already set globally in your App.razor. Having it in both places causes a crash.
-*@
-<PageTitle>LogIn</PageTitle>
+<PageTitle>Log In</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex align-start justify-center" Style="min-height: 100vh; background-image: linear-gradient(to bottom right, #f0fdfa, #ffffff, #f0fdfa); padding-top: 5rem; padding-left: 1rem; padding-right: 1rem; padding-bottom: 1rem;">
+@* Same styling as your Signup page *@
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex align-center justify-center" Style="min-height: 100vh; background-image: linear-gradient(to bottom right, #f0fdfa, #ffffff, #f0fdfa); padding: 0.5rem;">
 
     <MudCard Elevation="20" Class="w-100" Style="max-width: 28rem;">
 
         <MudCardHeader Class="pa-6">
             <CardHeaderContent>
-                <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold">Log In</MudText>
+                <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold">Welcome Back</MudText>
                 <MudText Typo="Typo.body1" Align="Align.Center" Class="mud-text-secondary">
                     Enter your credentials to access your account
                 </MudText>
@@ -23,17 +26,17 @@
         </MudCardHeader>
 
         <MudCardContent Class="pa-6 pt-0">
-            @* FIX: Removed the commented out OnValidSubmit attribute that was causing the crash *@
-            <EditForm Model="@model" FormName="LoginForm">
+            <EditForm Model="@model" OnValidSubmit="HandleValidSubmit">
                 <DataAnnotationsValidator />
+                <ValidationSummary />
 
                 <MudGrid Spacing="2">
 
                     <MudItem xs="12">
                         <MudTextField Label="Username"
-                                      Placeholder="Your Username"
+                                      Placeholder="Enter your username"
                                       Variant="Variant.Outlined"
-                                      InputType="InputType.Email"
+                                      InputType="InputType.Text"
                                       @bind-Value="model.Username"
                                       For="@(() => model.Username)"
                                       Required="true" />
@@ -49,12 +52,17 @@
                     </MudItem>
 
                     <MudItem xs="12" Class="mt-4">
-                        <MudButton ButtonType="ButtonType.Submit"
-                                   Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   FullWidth="true"
-                                   Size="Size.Large">
-                            Sign In
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                                   FullWidth="true" Size="Size.Large" Disabled="@_isLoading">
+                            @if (_isLoading)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                                <MudText Class="ms-2">Signing In...</MudText>
+                            }
+                            else
+                            {
+                                <MudText>Sign In</MudText>
+                            }
                         </MudButton>
                     </MudItem>
 
@@ -73,16 +81,93 @@
 </MudContainer>
 
 @code {
-    [SupplyParameterFromForm(FormName = "LoginForm")]
-    public LoginDTO model { get; set; } = new();
+    public LoginModel model { get; set; } = new();
 
-    public class LoginDTO
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        model ??= new();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _isLoading = true;
+
+        try
+        {
+            // 1. Prepare the payload (Uses JsonPropertyName to match API expectation)
+            var loginRequest = new LoginApiRequest
+            {
+                UserName = model.Username,
+                Password = model.Password
+            };
+
+            // 2. Call the API and expect a specific Response format
+            // NOTE: Check your Controller Route. Usually it is api/Auth/Login based on your Signup route.
+            var response = await apiClient.PostAsync<LoginApiRequest, LoginApiResponse>("api/Auth/Login", loginRequest);
+
+            if (response != null && response.Status)
+            {
+                Snackbar.Add("Login Successful!", Severity.Success);
+
+                // TODO: Save the token here (e.g. LocalStorage or SessionStorage)
+                // var token = response.Data.AccessToken;
+
+                NavigationManager.NavigateTo("/home"); // Redirect to dashboard
+            }
+            else
+            {
+                Snackbar.Add(response?.Message ?? "Invalid credentials", Severity.Error);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"System Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    // --- DTOs defined here for convenience ---
+
+    // 1. The Form Model (Validation)
+    public class LoginModel
     {
         [Required(ErrorMessage = "Username is required")]
-        [EmailAddress(ErrorMessage = "Please enter a valid email address")]
         public string Username { get; set; }
 
         [Required(ErrorMessage = "Password is required")]
         public string Password { get; set; }
+    }
+
+    // 2. The Payload sent to API (JSON names match your API)
+    public class LoginApiRequest
+    {
+        [JsonPropertyName("userName")]
+        public string UserName { get; set; }
+
+        [JsonPropertyName("password")]
+        public string Password { get; set; }
+    }
+
+    // 3. The Response received from API
+    public class LoginApiResponse
+    {
+        public bool Status { get; set; }
+        public string Message { get; set; }
+        public LoginTokenData Data { get; set; }
+    }
+
+    public class LoginTokenData
+    {
+        public string AccessToken { get; set; }
+        public string RefreshToken { get; set; }
     }
 }
