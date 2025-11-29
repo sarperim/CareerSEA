@@ -1,7 +1,7 @@
 # 🌊 CareerSEA 
 
 ![Status](https://img.shields.io/badge/status-development-orange)
-![.NET](https://img.shields.io/badge/.NET-9.0-purple)
+![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![Aspire](https://img.shields.io/badge/Aspire-Orchestration-green)
 
