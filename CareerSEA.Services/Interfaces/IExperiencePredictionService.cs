@@ -11,7 +11,7 @@ namespace CareerSEA.Services.Interfaces
 {
     public interface IExperiencePredictionService
     {
-        Task<List<Experience>> GetForms();
+        Task<BaseResponse> GetForms(Guid userId);
         Task<BaseResponse> SaveForm(ExperienceRequest response,Guid userId);
 
     }
