@@ -28,7 +28,7 @@ namespace CareerSEA.Services.Services
         public async Task<BaseResponse> SaveForm(ExperienceRequest response,Guid userId)
         {
             var existingUser = await _dbContext.Experiences.FirstOrDefaultAsync(a => a.UserId == userId);
-            if(existingUser != null)
+            if(existingUser == null)
             {
                 return new BaseResponse
                 {
