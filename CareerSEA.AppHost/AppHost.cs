@@ -6,6 +6,7 @@ var postgres = builder.AddPostgres("postgres")
 
 var apiService = builder.AddProject<Projects.CareerSEA_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
+    .WithReplicas(1)
     .WaitFor(postgres);
 
 var webfrontend = builder.AddProject<Projects.CareerSEA_Web>("webfrontend")
