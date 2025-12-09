@@ -17,6 +17,7 @@ from transformers import BertTokenizerFast, AutoModelForSequenceClassification
 from sklearn.metrics.pairwise import cosine_similarity
 #to load the job labels mapping json file
 import json
+import uvicorn
 
 
 
@@ -201,7 +202,9 @@ def home():
 
 #Testing with sample data to see if it works
 if __name__ == "__main__":
-
+   # This ensures the server starts when the script is run directly
+   uvicorn.run(app, host="0.0.0.0", port=8001)
+   """ 
     test_jobs =  [
         {
             "title": "Gymnast",
@@ -222,7 +225,6 @@ if __name__ == "__main__":
     print("Top 5 Best Jobs:")
     for rec in recommendations:
         print(rec)
+"""
 
-    import uvicorn
-    # This ensures the server starts when the script is run directly
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+
