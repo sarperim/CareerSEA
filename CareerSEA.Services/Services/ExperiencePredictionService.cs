@@ -7,8 +7,10 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace CareerSEA.Services.Services
@@ -16,8 +18,10 @@ namespace CareerSEA.Services.Services
     public class ExperiencePredictionService : IExperiencePredictionService
     {
         public CareerSEADbContext _dbContext;
-        public ExperiencePredictionService(CareerSEADbContext dbContext)
+        public HttpClient _httpClient;
+        public ExperiencePredictionService(CareerSEADbContext dbContext, IHttpClientFactory httpClientFactory)
         {
+            _httpClient = httpClientFactory.CreateClient();
             _dbContext = dbContext;
         }
         public async Task<BaseResponse> GetForms(Guid userId)
@@ -70,11 +74,54 @@ namespace CareerSEA.Services.Services
                 Description = response.Description,
                 Skills = response.Skills
             };
+
+            AIResponse aiResult = null;
+            try
+            {
+                // Prepare the payload matching the Python "UserInput" structure
+                var aiRequest = new AIRequest
+                {
+                    jobs = new List<AIJobDto>
+                    {
+                        new AIJobDto
+                        {
+                            title = response.Title,
+                            description = response.Description,
+                            skills = response.Skills
+                        }
+                    }
+                };
+
+                // Serialize to JSON
+                var jsonContent = new StringContent(
+                    JsonSerializer.Serialize(aiRequest),
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                // Send POST request to Python API
+                // Ensure this URL matches where your Python script is running
+                var httpResponse = await _httpClient.PostAsync("http://localhost:8001/predict", jsonContent);
+
+                if (httpResponse.IsSuccessStatusCode)
+                {
+                    var responseString = await httpResponse.Content.ReadAsStringAsync();
+
+                    // Configure deserializer to be case-insensitive (Python uses snake_case, C# usually PascalCase)
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    aiResult = JsonSerializer.Deserialize<AIResponse>(responseString, options);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error, but maybe don't fail the whole request if the DB save succeeded
+                Console.WriteLine($"AI Service Error: {ex.Message}");
+            }
             return new BaseResponse 
             {
                 Status = true, 
                 Message = "Success",
-                Data =  saved
+                Data = aiResult
             };
 
 
