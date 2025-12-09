@@ -20,7 +20,7 @@ namespace CareerSEA.ApiService.Controllers
 
         [Authorize]
         [HttpPost("SaveForm")]
-        public async Task<IActionResult> SaveForm(ExperienceRequest form)
+        public async Task<ActionResult<BaseResponse>> SaveForm(ExperienceRequest form)
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (userIdClaim == null)

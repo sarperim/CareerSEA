@@ -44,13 +44,13 @@ namespace CareerSEA.Services.Services
 
         public async Task<BaseResponse> SaveForm(ExperienceRequest response,Guid userId)
         {
-            var existingUser = await _dbContext.Experiences.FirstOrDefaultAsync(a => a.UserId == userId);
+            var existingUser = await _dbContext.Users.FirstOrDefaultAsync(a => a.Id == userId);
             if(existingUser == null)
             {
                 return new BaseResponse
                 {
                     Status = false,
-                    Message = "Error"
+                    Message = "Null"
                 };
             }
             var experience = new Experience
@@ -64,11 +64,17 @@ namespace CareerSEA.Services.Services
             await _dbContext.Experiences.AddAsync(experience);
             await _dbContext.SaveChangesAsync();
 
+            var saved = new ExperienceResponse
+            {
+                Title = response.Title,
+                Description = response.Description,
+                Skills = response.Skills
+            };
             return new BaseResponse 
             {
                 Status = true, 
                 Message = "Success",
-                Data = experience
+                Data =  saved
             };
 
 
