@@ -29,6 +29,11 @@ builder.AddContainer("pgadmin", "dpage/pgadmin4")
     .WithVolume("pgadmin-data", "/var/lib/pgadmin")
     .WithReference(postgres);
 
+
+var pythonApi = builder.AddPythonApp("python-api", "../CareeSEA.Py", "main.py")
+                       .WithHttpEndpoint(port: 8000, targetPort: 8001, name: "api") // We must tell Aspire which port you used above
+                       .WithExternalHttpEndpoints();
+
 apiService.WithReference(postgresdb);
 webfrontend.WithReference(postgresdb);
 
