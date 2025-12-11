@@ -4,15 +4,13 @@
 @using System.Text.Json.Serialization
 @using MudBlazor
 
-@* Injecting the same services as your Signup page *@
 @inject ApiClient apiClient
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 
 <PageTitle>Log In</PageTitle>
 
-@* Same styling as your Signup page *@
-<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex align-center justify-center" Style="min-height: 100vh; background-image: linear-gradient(to bottom right, #f0fdfa, #ffffff, #f0fdfa); padding: 0.5rem;">
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex align-center justify-center" Style="min-height: 100vh; padding: 0.5rem;">
 
     <MudCard Elevation="20" Class="w-100" Style="max-width: 28rem;">
 
@@ -33,22 +31,25 @@
                 <MudGrid Spacing="2">
 
                     <MudItem xs="12">
+                        @* Removed Placeholder attribute here *@
                         <MudTextField Label="Username"
-                                      Placeholder="Enter your username"
                                       Variant="Variant.Outlined"
                                       InputType="InputType.Text"
                                       @bind-Value="model.Username"
                                       For="@(() => model.Username)"
-                                      Required="true" />
+                                      Required="true"
+                                      Margin="Margin.Dense" />
                     </MudItem>
 
                     <MudItem xs="12">
+                        @* Removed Placeholder attribute here *@
                         <MudTextField Label="Password"
                                       Variant="Variant.Outlined"
                                       InputType="InputType.Password"
                                       @bind-Value="model.Password"
                                       For="@(() => model.Password)"
-                                      Required="true" />
+                                      Required="true"
+                                      Margin="Margin.Dense" />
                     </MudItem>
 
                     <MudItem xs="12" Class="mt-4">
@@ -96,25 +97,18 @@
 
         try
         {
-            // 1. Prepare the payload (Uses JsonPropertyName to match API expectation)
             var loginRequest = new LoginApiRequest
             {
                 UserName = model.Username,
                 Password = model.Password
             };
 
-            // 2. Call the API and expect a specific Response format
-            // NOTE: Check your Controller Route. Usually it is api/Auth/Login based on your Signup route.
             var response = await apiClient.PostAsync<LoginApiRequest, LoginApiResponse>("api/Auth/Login", loginRequest);
 
             if (response != null && response.Status)
             {
                 Snackbar.Add("Login Successful!", Severity.Success);
-
-                // TODO: Save the token here (e.g. LocalStorage or SessionStorage)
-                // var token = response.Data.AccessToken;
-
-                NavigationManager.NavigateTo("/home"); // Redirect to dashboard
+                NavigationManager.NavigateTo("/experience");
             }
             else
             {
@@ -135,9 +129,6 @@
         }
     }
 
-    // --- DTOs defined here for convenience ---
-
-    // 1. The Form Model (Validation)
     public class LoginModel
     {
         [Required(ErrorMessage = "Username is required")]
@@ -147,7 +138,6 @@
         public string Password { get; set; }
     }
 
-    // 2. The Payload sent to API (JSON names match your API)
     public class LoginApiRequest
     {
         [JsonPropertyName("userName")]
@@ -157,7 +147,6 @@
         public string Password { get; set; }
     }
 
-    // 3. The Response received from API
     public class LoginApiResponse
     {
         public bool Status { get; set; }
