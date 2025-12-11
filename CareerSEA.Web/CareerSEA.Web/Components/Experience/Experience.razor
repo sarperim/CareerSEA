@@ -1,17 +1,20 @@
-﻿@page "/experienc"
-@rendermode InteractiveAuto
+﻿@page "/experience"
+@rendermode InteractiveServer
 @using CareerSEA.Contracts
 @using CareerSEA.Contracts.Requests
 @using CareerSEA.Contracts.Responses
 @using MudExtensions
 @using Newtonsoft.Json
 @using MudBlazor
+@using System.Net.Http.Json
 @inject ApiClient apiClient
 @inject ISnackbar Snackbar
+@inject HttpClient Http
 
-<MudPopoverProvider />
+
 <MudDialogProvider />
 <MudSnackbarProvider />
+<MudPopoverProvider />
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex justify-center" Style="min-height: 90vh; padding: 0.25rem 0.5rem;">
 
     <MudCard Elevation="20" Class="w-100" Style="max-width: 56rem;">
@@ -28,21 +31,30 @@
         <MudCardContent Class="pa-8">
 
             <MudText Typo="Typo.h6" GutterBottom="true">Saved Experiences</MudText>
-            @if (experienceModels == null)
+
+            @if (_isLoading)
             {
-                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                <div class="d-flex justify-center my-4">
+                    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                </div>
+            }
+            else if (experienceModels == null || !experienceModels.Any())
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="my-4">
+                    No experiences found. Add your first job role below!
+                </MudAlert>
             }
             else
             {
                 <MudStack Spacing="3">
                     @foreach (var exp in experienceModels)
                     {
-                        <MudPaper Class="job-entry-paper pa-4">
-                            <MudText Typo="Typo.h6" GutterBottom="true">@exp.Title</MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">@exp.Description</MudText>
-                            <MudText Typo="Typo.body2">
-                                <strong>Skills:</strong>
-                                <MudText Inline="true" Color="Color.Primary">@exp.Skills</MudText>
+                        <MudPaper Class="job-entry-paper pa-4" Elevation="2">
+                            <MudText Typo="Typo.h6" Color="Color.Primary" GutterBottom="true">@exp.Title</MudText>
+                            <MudText Typo="Typo.body2" Class="mb-3" Style="white-space: pre-line;">@exp.Description</MudText>
+                            <MudDivider Class="mb-2" />
+                            <MudText Typo="Typo.caption">
+                                <strong>Skills:</strong> @exp.Skills
                             </MudText>
                         </MudPaper>
                     }
@@ -53,7 +65,7 @@
 
             <MudText Typo="Typo.h6" GutterBottom="true">Add New Experience</MudText>
 
-            <EditForm Model="@model" @* OnValidSubmit="HandleValidSubmit" *@ FormName="ExperienceForm">
+            <EditForm Model="@model" OnValidSubmit="HandleValidSubmit" FormName="ExperienceForm">
                 <DataAnnotationsValidator />
 
                 <MudGrid Spacing="3">
@@ -73,7 +85,6 @@
                                            HelperText="Select a job title from the list"
                                            For="@(() => model.Title)"
                                            Required="true" />
-
                     </MudItem>
 
                     <MudItem xs="12">
@@ -100,8 +111,17 @@
                                    Variant="Variant.Filled"
                                    Color="Color.Primary"
                                    FullWidth="true"
+                                   Disabled="@_isSaving"
                                    Size="Size.Large">
-                            Save Experience
+                            @if (_isSaving)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                                <MudText Class="ms-2">Saving...</MudText>
+                            }
+                            else
+                            {
+                                <MudText>Save Experience</MudText>
+                            }
                         </MudButton>
                     </MudItem>
 
@@ -121,10 +141,15 @@
         </MudCardContent>
     </MudCard>
 </MudContainer>
+
 @code {
-    public IList<ExperienceRequest> experienceModels { get; set; }
+    public List<ExperienceRequest> experienceModels { get; set; } = new();
+
     [SupplyParameterFromForm(FormName = "ExperienceForm")]
     public ExperienceRequest model { get; set; } = new();
+
+    private bool _isLoading = true;
+    private bool _isSaving = false;
 
     private string[] _jobTitles =
     {
@@ -138,16 +163,14 @@
     {
         if (string.IsNullOrWhiteSpace(search))
             return true;
-
         return value.Contains(search, StringComparison.InvariantCultureIgnoreCase);
     }
-
 
     protected override async Task OnInitializedAsync()
     {
         await LoadExperiencesAsync();
     }
-/*
+
     private async Task HandleValidSubmit()
     {
         if (!_jobTitles.Contains(model.Title))
@@ -156,26 +179,87 @@
             return;
         }
 
-         var result = await ApiClient.PostAsync<ExperienceRequest, BaseResponse>("/api/Experience/SaveForm", model);
-        if (result.Success)
+        _isSaving = true;
+        try
         {
-            model = new();
-            await LoadExperiencesAsync();
-            Snackbar.Add("Experience Saved!", Severity.Success);
+            // FIX 1: Updated Endpoint from "/api/Experience/..." to "/api/ExperiencePrediction/..."
+            var response = await Http.PostAsJsonAsync("/api/ExperiencePrediction/SaveForm", model);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<BaseResponse>();
+
+                if (result != null && result.Status)
+                {
+                    model = new(); // Reset form
+                    await LoadExperiencesAsync(); // Reload list
+                    Snackbar.Add("Experience Saved!", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Saved, but server returned an error: " + (result?.Message ?? "Unknown"), Severity.Warning);
+                }
+            }
+            else
+            {
+                Snackbar.Add($"Error saving experience. Status: {response.StatusCode}", Severity.Error);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Snackbar.Add("Error saving experience.", Severity.Error);
+            Snackbar.Add($"Connection error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
         }
     }
-*/
+
     private async Task LoadExperiencesAsync()
     {
-        var result = await apiClient.GetAsync<BaseResponse>("/api/Experience/GetForms");
-        if (result != null && result.Status)
+        _isLoading = true;
+        try
         {
-            experienceModels = JsonConvert.DeserializeObject<List<ExperienceRequest>>(result.Data.ToString());
+            // FIX 2: Updated Endpoint from "/api/Experience/..." to "/api/ExperiencePrediction/..."
+            var result = await Http.GetFromJsonAsync<BaseResponse>("/api/ExperiencePrediction/GetForms");
+
+            if (result != null && result.Status)
+            {
+                if (result.Data != null)
+                {
+                    // FIX 3: Robust Deserialization
+                    // HttpClient uses System.Text.Json, so result.Data is a JsonElement.
+                    // We convert it to a string so Newtonsoft can parse it into your List object.
+                    var jsonString = result.Data.ToString();
+                    experienceModels = JsonConvert.DeserializeObject<List<ExperienceRequest>>(jsonString) ?? new List<ExperienceRequest>();
+                }
+                else
+                {
+                    experienceModels = new List<ExperienceRequest>();
+                }
+            }
+            else
+            {
+                experienceModels = new List<ExperienceRequest>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading data: {ex.Message}");
+            Snackbar.Add("Failed to load previous experiences.", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
             StateHasChanged();
         }
     }
 }
+<style>
+    /* Force the label background to match the Card's Surface color
+           instead of the Page's Background color.
+        */
+    .mud-input-control.mud-input-control-outlined .mud-input-label {
+        background-color: var(--mud-palette-surface) !important;
+    }
+</style>
