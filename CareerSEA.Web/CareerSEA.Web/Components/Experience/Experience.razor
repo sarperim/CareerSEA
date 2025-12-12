@@ -4,21 +4,22 @@
 @using CareerSEA.Contracts.Requests
 @using CareerSEA.Contracts.Responses
 @using MudExtensions
-@using Newtonsoft.Json
 @using MudBlazor
-@using System.Net.Http.Json
-@inject ApiClient apiClient
-@inject ISnackbar Snackbar
-@inject HttpClient Http
+@using System.Text.Json
+@using CareerSEA.Web
 
+@inject ServerApiClient apiClient
+@inject ISnackbar Snackbar
+@inject PredictionState predictionState
+@inject NavigationManager NavManager 
 
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex justify-center" Style="min-height: 90vh; padding: 0.25rem 0.5rem;">
-
+    @* ... (Keep your existing UI code exactly the same) ... *@
+    
     <MudCard Elevation="20" Class="w-100" Style="max-width: 56rem;">
-
         <MudCardHeader Class="border-b-1 border-solid border-lines-default pa-6">
             <CardHeaderContent>
                 <MudText Typo="Typo.h4" Align="Align.Center" Class="font-weight-bold">Experience Dashboard</MudText>
@@ -29,7 +30,8 @@
         </MudCardHeader>
 
         <MudCardContent Class="pa-8">
-
+            @* ... (Keep your list and form UI exactly the same) ... *@
+            
             <MudText Typo="Typo.h6" GutterBottom="true">Saved Experiences</MudText>
 
             @if (_isLoading)
@@ -69,8 +71,8 @@
                 <DataAnnotationsValidator />
 
                 <MudGrid Spacing="3">
-
-                    <MudItem xs="12">
+                     @* ... (Keep your input fields exactly the same) ... *@
+                     <MudItem xs="12">
                         <MudSelectExtended T="string"
                                            @rendermode="InteractiveAuto"
                                            @bind-Value="model.Title"
@@ -124,20 +126,14 @@
                             }
                         </MudButton>
                     </MudItem>
-
+                    
                     <MudItem xs="12">
-                        <MudButton ButtonType="ButtonType.Button"
-                                   Variant="Variant.Filled"
-                                   Color="Color.Secondary"
-                                   FullWidth="true"
-                                   Size="Size.Large">
+                         <MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Secondary" FullWidth="true" Size="Size.Large">
                             Generate Future Career Prospects
                         </MudButton>
                     </MudItem>
-
                 </MudGrid>
             </EditForm>
-
         </MudCardContent>
     </MudCard>
 </MudContainer>
@@ -161,52 +157,66 @@
 
     private bool SearchJobTitleFunc(string value, string search)
     {
-        if (string.IsNullOrWhiteSpace(search))
-            return true;
+        if (string.IsNullOrWhiteSpace(search)) return true;
         return value.Contains(search, StringComparison.InvariantCultureIgnoreCase);
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadExperiencesAsync();
+        if (firstRender)
+        {
+            await LoadExperiencesAsync();
+        }
     }
-
     private async Task HandleValidSubmit()
     {
-        if (!_jobTitles.Contains(model.Title))
-        {
-            Snackbar.Add("Please select a job title from the list.", Severity.Warning);
-            return;
-        }
+        // ... (Your validation checks) ...
 
         _isSaving = true;
         try
         {
-            // FIX 1: Updated Endpoint from "/api/Experience/..." to "/api/ExperiencePrediction/..."
-            var response = await Http.PostAsJsonAsync("/api/ExperiencePrediction/SaveForm", model);
+            var response = await apiClient.PostAsync<ExperienceRequest, BaseResponse>("api/ExperiencePrediction/Predict", model);
 
-            if (response.IsSuccessStatusCode)
+            if (response != null && response.Status)
             {
-                var result = await response.Content.ReadFromJsonAsync<BaseResponse>();
 
-                if (result != null && result.Status)
+                if (response.Data is System.Text.Json.JsonElement element)
                 {
-                    model = new(); // Reset form
-                    await LoadExperiencesAsync(); // Reload list
-                    Snackbar.Add("Experience Saved!", Severity.Success);
+                    // DEBUG: Print the raw JSON to the console to verify what we actually got
+                    var rawJson = element.GetRawText();
+
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                    };
+
+                    var prediction = JsonSerializer.Deserialize<AnalysisData>(rawJson, options);
+
+                    if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
+                    {
+
+                        // Store in state
+                        predictionState.Result = prediction;
+
+                        NavManager.NavigateTo("/result");
+                        Snackbar.Add("Analysis Complete!", Severity.Success);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Received data but could not read it.", Severity.Error);
+                    }
                 }
-                else
-                {
-                    Snackbar.Add("Saved, but server returned an error: " + (result?.Message ?? "Unknown"), Severity.Warning);
-                }
+                model = new();
             }
             else
             {
-                Snackbar.Add($"Error saving experience. Status: {response.StatusCode}", Severity.Error);
+                Snackbar.Add("Server error: " + (response?.Message ?? "Unknown"), Severity.Warning);
             }
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"❌ Error: {ex}");
             Snackbar.Add($"Connection error: {ex.Message}", Severity.Error);
         }
         finally
@@ -218,24 +228,34 @@
     private async Task LoadExperiencesAsync()
     {
         _isLoading = true;
+        StateHasChanged();
+
         try
         {
-            // FIX 2: Updated Endpoint from "/api/Experience/..." to "/api/ExperiencePrediction/..."
-            var result = await Http.GetFromJsonAsync<BaseResponse>("/api/ExperiencePrediction/GetForms");
+            var result = await apiClient.GetAsync<BaseResponse>("api/ExperiencePrediction/GetForms");
 
-            if (result != null && result.Status)
+            if (result != null && result.Status && result.Data != null)
             {
-                if (result.Data != null)
+                if (result.Data is System.Text.Json.JsonElement element)
                 {
-                    // FIX 3: Robust Deserialization
-                    // HttpClient uses System.Text.Json, so result.Data is a JsonElement.
-                    // We convert it to a string so Newtonsoft can parse it into your List object.
-                    var jsonString = result.Data.ToString();
-                    experienceModels = JsonConvert.DeserializeObject<List<ExperienceRequest>>(jsonString) ?? new List<ExperienceRequest>();
-                }
-                else
-                {
-                    experienceModels = new List<ExperienceRequest>();
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+                    // Handle nested "data" wrapper if it exists
+                    if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("data", out var innerData))
+                    {
+                        element = innerData;
+                    }
+
+                    if (element.ValueKind == JsonValueKind.Array)
+                    {
+                        experienceModels = JsonSerializer.Deserialize<List<ExperienceRequest>>(element.GetRawText(), options) 
+                                           ?? new List<ExperienceRequest>();
+                    }
+                    else if (element.ValueKind == JsonValueKind.Object)
+                    {
+                        var singleExp = JsonSerializer.Deserialize<ExperienceRequest>(element.GetRawText(), options);
+                        if (singleExp != null) experienceModels = new List<ExperienceRequest> { singleExp };
+                    }
                 }
             }
             else
@@ -245,8 +265,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading data: {ex.Message}");
-            Snackbar.Add("Failed to load previous experiences.", Severity.Error);
+            Console.WriteLine($"Error: {ex.Message}");
         }
         finally
         {
@@ -255,11 +274,3 @@
         }
     }
 }
-<style>
-    /* Force the label background to match the Card's Surface color
-           instead of the Page's Background color.
-        */
-    .mud-input-control.mud-input-control-outlined .mud-input-label {
-        background-color: var(--mud-palette-surface) !important;
-    }
-</style>

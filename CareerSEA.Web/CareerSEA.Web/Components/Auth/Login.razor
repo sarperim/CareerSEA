@@ -4,7 +4,8 @@
 @using System.Text.Json.Serialization
 @using MudBlazor
 
-@inject ApiClient apiClient
+@inject TokenStore tokenStore
+@inject ServerApiClient apiClient
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 
@@ -107,6 +108,8 @@
 
             if (response != null && response.Status)
             {
+                await tokenStore.SetAccessTokenAsync(response.Data.AccessToken);
+                await tokenStore.SetRefreshTokenAsync(response.Data.RefreshToken);
                 Snackbar.Add("Login Successful!", Severity.Success);
                 NavigationManager.NavigateTo("/experience");
             }
