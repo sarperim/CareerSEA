@@ -4,9 +4,14 @@ var postgres = builder.AddPostgres("postgres")
     .WithImage("pgvector/pgvector", "pg17")
     .WithDataVolume();
 
+var pythonApi = builder.AddPythonApp("aiservice", "../CareeSEA.Py", "main.py")
+                       .WithHttpEndpoint(port: 8000, targetPort: 8001) 
+                       .WithExternalHttpEndpoints();
+
 var apiService = builder.AddProject<Projects.CareerSEA_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
     .WithReplicas(1)
+    .WithReference(pythonApi)
     .WaitFor(postgres);
 
 var webfrontend = builder.AddProject<Projects.CareerSEA_Web>("webfrontend")
@@ -15,9 +20,7 @@ var webfrontend = builder.AddProject<Projects.CareerSEA_Web>("webfrontend")
     .WithReference(apiService)
     .WaitFor(apiService);
 
-
 //var dbPassword = builder.AddParameter("postgres-password", secret: true);
-
 
 var postgresdb = postgres.AddDatabase("webAppDb");
 var vectordb = postgres.AddDatabase("vectorDb");
@@ -29,10 +32,6 @@ builder.AddContainer("pgadmin", "dpage/pgadmin4")
     .WithVolume("pgadmin-data", "/var/lib/pgadmin")
     .WithReference(postgres);
 
-
-var pythonApi = builder.AddPythonApp("python-api", "../CareeSEA.Py", "main.py")
-                       .WithHttpEndpoint(port: 8000, targetPort: 8001, name: "api") 
-                       .WithExternalHttpEndpoints();
 
 apiService.WithReference(postgresdb);
 webfrontend.WithReference(postgresdb);

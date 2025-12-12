@@ -85,13 +85,14 @@
                                            SearchBoxClearable="true"
                                            SearchFunc="@(new Func<string, string, bool>(SearchJobTitleFunc))"
                                            HelperText="Select a job title from the list"
+                                           Virtualize="true"
                                            For="@(() => model.Title)"
                                            Required="true" />
                     </MudItem>
 
                     <MudItem xs="12">
                         <MudTextField Label="Job Description"
-                                      Placeholder="Paste the full job description here..."
+                                      Placeholder="Enter the full job description here..."
                                       Variant="Variant.Outlined"
                                       Lines="6"
                                       @bind-Value="model.Description"
@@ -101,7 +102,7 @@
 
                     <MudItem xs="12">
                         <MudTextField Label="Skills"
-                                      Placeholder="e.g., Kubernetes, Terraform, Ansible"
+                                      Placeholder="Enter you skills here..."
                                       Variant="Variant.Outlined"
                                       @bind-Value="model.Skills"
                                       For="@(() => model.Skills)"
@@ -147,13 +148,7 @@
     private bool _isLoading = true;
     private bool _isSaving = false;
 
-    private string[] _jobTitles =
-    {
-        "Senior Frontend Developer", "Full-Stack Engineer", "DevOps Engineer",
-        "Backend Developer", "Cloud Architect", "Data Scientist",
-        "UX/UI Designer", "Product Manager", "Scrum Master",
-        "Software Engineer", "QA Tester", "Database Administrator"
-    };
+    private string[] _jobTitles = JobTitles.Jobs;
 
     private bool SearchJobTitleFunc(string value, string search)
     {
