@@ -1,85 +1,62 @@
-﻿using System.Net.Http.Json;
-using System.Text.Json;
+﻿using System.Net.Http.Headers;
+using System.Net.Http.Json;
 
 namespace CareerSEA.Web;
 
-public class ApiClient
+public class ServerApiClient
 {
-    private readonly HttpClient _http;
+    private readonly HttpClient _client;
+    private readonly TokenStore _tokenStore;
 
-    public ApiClient(HttpClient http)
+    public ServerApiClient(HttpClient client, TokenStore tokenStore)
     {
-        _http = http;
+        _client = client;
+        _tokenStore = tokenStore;
     }
 
-    // GET
+    private async Task AddAuthHeader()
+    {
+        var token = await _tokenStore.GetAccessTokenAsync();
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            _client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
+        }
+    }
+
+    // --- EXISTING METHODS (Used by Experience.razor) ---
+
+    public async Task<HttpResponseMessage> PostAsync<T>(string url, T model)
+    {
+        await AddAuthHeader();
+        return await _client.PostAsJsonAsync(url, model);
+    }
+
     public async Task<T?> GetAsync<T>(string url)
     {
-        return await _http.GetFromJsonAsync<T>(url, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        await AddAuthHeader();
+        return await _client.GetFromJsonAsync<T>(url);
     }
 
-    // POST (returns response body)
-    public async Task<TResponse?> PostAsync<TRequest, TResponse>(string url, TRequest body)
-    {
-        var response = await _http.PostAsJsonAsync(url, body);
+    // --- NEW METHOD (Used by Login.razor) ---
 
-        if (!response.IsSuccessStatusCode)
+    // This overload takes two types: Request and Response. 
+    // It automatically reads the JSON from the result.
+    public async Task<TResponse?> PostAsync<TRequest, TResponse>(string url, TRequest model)
+    {
+        await AddAuthHeader();
+        var response = await _client.PostAsJsonAsync(url, model);
+
+        // We attempt to read the response even if it failed (e.g. 400 Bad Request),
+        // because your API likely returns a standardized error message in the JSON body.
+        try
         {
-            var content = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException(
-                $"POST {url} failed ({response.StatusCode}).\nResponse:\n{content}"
-            );
+            return await response.Content.ReadFromJsonAsync<TResponse>();
         }
-
-        return await response.Content.ReadFromJsonAsync<TResponse>(new JsonSerializerOptions
+        catch
         {
-            PropertyNameCaseInsensitive = true
-        });
-    }
-
-    // POST (no return, just success/failure)
-    public async Task PostAsync<TRequest>(string url, TRequest body)
-    {
-        var response = await _http.PostAsJsonAsync(url, body);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException(
-                $"POST {url} failed ({response.StatusCode}).\nResponse:\n{content}"
-            );
-        }
-    }
-
-    // PUT
-    public async Task PutAsync<TRequest>(string url, TRequest body)
-    {
-        var response = await _http.PutAsJsonAsync(url, body);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException(
-                $"PUT {url} failed ({response.StatusCode}).\nResponse:\n{content}"
-            );
-        }
-    }
-
-    // DELETE
-    public async Task DeleteAsync(string url)
-    {
-        var response = await _http.DeleteAsync(url);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException(
-                $"DELETE {url} failed ({response.StatusCode}).\nResponse:\n{content}"
-            );
+            // If the server returns purely text or HTML (500 error), return default/null
+            return default;
         }
     }
 }
-

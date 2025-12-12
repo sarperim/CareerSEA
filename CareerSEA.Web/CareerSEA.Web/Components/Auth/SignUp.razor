@@ -4,7 +4,7 @@
 @using MudBlazor
 @using CareerSEA.Contracts.Requests
 @using CareerSEA.Contracts.Responses
-@inject ApiClient apiClient
+@inject ServerApiClient apiClient
 
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
@@ -138,7 +138,7 @@
             await apiClient.PostAsync("api/Auth/Register", signupRequest);
 
             Snackbar.Add("Account created successfully!", Severity.Success);
-            NavigationManager.NavigateTo("/home");
+            NavigationManager.NavigateTo("/");
         }
         catch (HttpRequestException ex)
         {

@@ -1,0 +1,145 @@
+﻿@page "/result"
+@rendermode InteractiveServer
+@using MudBlazor
+@using CareerSEA.Web  @* Ensure this using statement points to where you put PredictionState.cs *@
+@inject PredictionState predictionState
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
+
+    <MudCard Elevation="4" Class="rounded-xl">
+
+        <MudCardHeader Class="d-flex flex-column align-center py-8">
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold mb-1">
+                    AI Analysis Results
+                </MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center" Class="mud-text-secondary">
+                    Here is the prediction based on your profile and the target job.
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+
+        <MudCardContent Class="pa-8">
+
+            @if (_data == null)
+            {
+                <MudAlert Severity="Severity.Warning" Class="my-4">
+                    No analysis data found. Please go back and submit your experience.
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/experience">Go to Dashboard</MudButton>
+                </MudAlert>
+            }
+            else
+            {
+                <MudGrid Class="pb-8 mb-8" Spacing="4" Justify="Justify.Center" Style="border-bottom: 1px solid var(--mud-palette-lines-default);">
+
+                    <MudItem xs="12" sm="4" Class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold text-uppercase mb-2" Style="letter-spacing: 0.05em;">
+                            CURRENT PROFILE
+                        </MudText>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">
+                            User Profile
+                        </MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4" Class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold text-uppercase mb-2" Style="letter-spacing: 0.05em;">
+                            BEST JOB MATCH
+                        </MudText>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold text-capitalize" Color="@GetColorByScore(_data.MatchScore)" Align="Align.Center">
+                            @(_data.BestJob ?? "Unknown")
+                        </MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4" Class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold text-uppercase mb-2" Style="letter-spacing: 0.05em;">
+                            MATCH SCORE
+                        </MudText>
+                        <MudText Typo="Typo.h3" Class="font-weight-bold" Color="@GetColorByScore(_data.MatchScore)" Style="line-height:1;">
+                            @((_data.MatchScore * 100).ToString("0"))%
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+
+                <div class="mb-8">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Top 5 Job Picks</MudText>
+
+                    @if (_data.Recommendations.Any())
+                    {
+                        <MudStack Spacing="3">
+                            @foreach (var job in _data.Recommendations.OrderByDescending(x => x.Score).Take(5))
+                            {
+                                var percentage = (int)(job.Score * 100);
+
+                                <MudPaper Elevation="0" Outlined="true" Class="pa-4 rounded-lg">
+                                    <div class="d-flex justify-space-between align-center mb-2">
+                                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-capitalize">
+                                            @job.Label
+                                        </MudText>
+                                        <MudChip T="string" Size="Size.Small" Color="GetColorByScore(job.Score)" Variant="Variant.Text" Class="font-weight-bold">
+                                            @percentage% Match
+                                        </MudChip>
+                                    </div>
+                                    <MudProgressLinear Value="@percentage" Color="GetColorByScore(job.Score)" Size="Size.Medium" Rounded="true" Class="mud-width-full" />
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                </div>
+
+                <MudDivider Class="my-8" />
+
+                <div>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Recommended Next Steps</MudText>
+                    <MudList T="string" Dense="true" DisablePadding="true">
+                        <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Primary">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Review the specific requirements for <strong>@_data.BestJob</strong>.
+                            </MudText>
+                        </MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.TrendingUp" IconColor="Color.Primary">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Update your resume to highlight skills relevant to the <strong>Top 5</strong> identified roles.
+                            </MudText>
+                        </MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.School" IconColor="Color.Primary">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Consider upskilling in related fields to broaden your matching potential.
+                            </MudText>
+                        </MudListItem>
+                    </MudList>
+                </div>
+            }
+
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private AnalysisData? _data;
+
+    protected override void OnInitialized()
+    {
+        // GET DATA FROM STATE
+        _data = predictionState.Result;
+
+        // If user accessed page directly without submitting form, redirect back
+        if (_data == null)
+        {
+            // Optional: Auto-redirect
+            // NavigationManager.NavigateTo("/experience");
+        }
+    }
+
+    private Color GetColorByScore(float score)
+    {
+        return score switch
+        {
+            >= 0.60f => Color.Success,
+            >= 0.55f => Color.Primary,
+            >= 0.50f => Color.Info,
+            >= 0.40f => Color.Warning,
+            _ => Color.Error
+        };
+    }
+}

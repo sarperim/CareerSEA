@@ -1,6 +1,7 @@
 using CareerSEA.Web;
 using CareerSEA.Web.Client.Pages;
 using CareerSEA.Web.Components;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.Extensions.Hosting;
 using MudBlazor.Services;
 using MudExtensions.Services;
@@ -9,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.AddServiceDefaults();
-builder.Services.AddHttpClient<ApiClient>(client =>
+builder.Services.AddHttpClient<ServerApiClient>(client =>
 {
     client.BaseAddress = new("https+http://apiservice");
 });
@@ -20,6 +21,10 @@ builder.Services.AddMudExtensions();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options => options.DetailedErrors = true) 
     .AddInteractiveWebAssemblyComponents();
+
+builder.Services.AddScoped<PredictionState>();
+builder.Services.AddScoped<TokenStore>();
+builder.Services.AddScoped<ProtectedSessionStorage>();
 
 var app = builder.Build();
 
