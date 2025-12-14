@@ -19,7 +19,7 @@ namespace CareerSEA.ApiService.Controllers
         }
 
         [Authorize]
-        [HttpPost("SaveForm")]
+        [HttpPost("Predict")]
         public async Task<ActionResult<BaseResponse>> SaveForm(ExperienceRequest form)
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);

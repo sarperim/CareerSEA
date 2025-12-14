@@ -12,8 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
-
 builder.AddNpgsqlDbContext<CareerSEADbContext>("webAppDb");
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IExperiencePredictionService, ExperiencePredictionService>();
 
@@ -79,6 +79,9 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<CareerSEADbContext>();
     await db.Database.MigrateAsync();
 }
+app.UseRouting();
+app.UseAuthentication();   
+app.UseAuthorization();
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
