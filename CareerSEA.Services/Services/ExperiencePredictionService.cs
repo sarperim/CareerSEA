@@ -66,7 +66,6 @@ namespace CareerSEA.Services.Services
                 Skills = response.Skills
             };
             await _dbContext.Experiences.AddAsync(experience);
-            await _dbContext.SaveChangesAsync();
 
             var saved = new ExperienceResponse
             {
@@ -107,9 +106,39 @@ namespace CareerSEA.Services.Services
                 {
                     var responseString = await httpResponse.Content.ReadAsStringAsync();
 
-                    // Configure deserializer to be case-insensitive (Python uses snake_case, C# usually PascalCase)
+                    // 1. Deserialize into your DTO (AIResponse)
                     var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                     aiResult = JsonSerializer.Deserialize<AIResponse>(responseString, options);
+
+                    if (aiResult != null)
+                    {
+                        // 2. MAP the data: Copy from AIResponse -> PredictionResult
+                        var dbResult = new PredictionResult
+                        {
+                            // Left side = Database Class | Right side = AI Response Class
+                            BestJob = aiResult.best_job,
+                            MatchScore = aiResult.match_score, // float converts to double automatically
+
+                            // Map the list of recommendations
+                            Recommendations = aiResult.recommendations?.Select(r => new JobRecommendation
+                            {
+                                Label = r.label,
+                                Score = r.score
+                            }).ToList() ?? new List<JobRecommendation>()
+                        };
+
+                        // 3. Create the Database Entity
+                        var predictionEntry = new Prediction
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = userId,
+                            Result = dbResult // Now we are assigning the correct type!
+                        };
+
+                        // 4. Save to DB
+                        await _dbContext.Predictions.AddAsync(predictionEntry);
+                        await _dbContext.SaveChangesAsync();
+                    }
                 }
             }
             catch (Exception ex)

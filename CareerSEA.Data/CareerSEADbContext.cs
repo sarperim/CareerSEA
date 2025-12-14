@@ -50,6 +50,15 @@ namespace CareerSEA.Data
             modelBuilder.Entity<ESCO_Occupation>()
                 .Property(e => e.ESCOId).ValueGeneratedNever();
 
+            modelBuilder.Entity<Prediction>(entity =>
+            {
+                // Configure the 'Result' property to be stored as JSON
+                entity.OwnsOne(p => p.Result, builder =>
+                {
+                    builder.ToJson(); // Tells EF this entire object is a JSON column
+                    builder.OwnsMany(r => r.Recommendations);
+                });
+            });
         }
     }
 }
