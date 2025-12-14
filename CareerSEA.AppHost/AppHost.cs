@@ -3,15 +3,20 @@ var builder = DistributedApplication.CreateBuilder(args);
 var postgres = builder.AddPostgres("postgres")
     .WithImage("pgvector/pgvector", "pg17")
     .WithDataVolume();
-
-var pythonApi = builder.AddPythonApp("aiservice", "../CareeSEA.Py", "main.py")
+/*
+var pythonApi = builder.AddPythonApp("aiservice", "../CareerSEA.Py", "main.py")
                        .WithHttpEndpoint(port: 8000, targetPort: 8001) 
                        .WithExternalHttpEndpoints();
+*/
+
+var pythonApi = builder.AddDockerfile("aiservice", "../CareerSEA.Py")
+    .WithHttpEndpoint(port: 8001, targetPort: 8001, name: "api")
+    .WithExternalHttpEndpoints();
 
 var apiService = builder.AddProject<Projects.CareerSEA_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
     .WithReplicas(1)
-    .WithReference(pythonApi)
+    .WithReference(pythonApi.GetEndpoint("api"))
     .WaitFor(postgres);
 
 var webfrontend = builder.AddProject<Projects.CareerSEA_Web>("webfrontend")
