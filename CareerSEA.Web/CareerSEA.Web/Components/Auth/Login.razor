@@ -110,6 +110,7 @@
             {
                 await tokenStore.SetAccessTokenAsync(response.Data.AccessToken);
                 await tokenStore.SetRefreshTokenAsync(response.Data.RefreshToken);
+                tokenStore.Username = model.Username;
                 Snackbar.Add("Login Successful!", Severity.Success);
                 NavigationManager.NavigateTo("/experience");
             }

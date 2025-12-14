@@ -24,7 +24,6 @@ public class ServerApiClient
         }
     }
 
-    // --- EXISTING METHODS (Used by Experience.razor) ---
 
     public async Task<HttpResponseMessage> PostAsync<T>(string url, T model)
     {
@@ -48,7 +47,6 @@ public class ServerApiClient
         var response = await _client.PostAsJsonAsync(url, model);
 
         // We attempt to read the response even if it failed (e.g. 400 Bad Request),
-        // because your API likely returns a standardized error message in the JSON body.
         try
         {
             return await response.Content.ReadFromJsonAsync<TResponse>();
