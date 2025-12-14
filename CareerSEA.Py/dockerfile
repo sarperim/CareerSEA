@@ -1,0 +1,25 @@
+# Use a lightweight Python base image
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# 1. Install CPU-only PyTorch manually
+# We do this FIRST to ensure the small version is locked in.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# 2. Install the rest of the dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 3. Copy ONLY the specific files we need (Whitelist Method)
+# This prevents copying the 2.2GB junk (venv) from your computer
+COPY fine_tuned_BERT ./fine_tuned_BERT
+COPY tokenizer ./tokenizer
+COPY job_embeddings.npy .
+COPY job_labels.npy .
+COPY job_label_mapping.json .
+COPY main.py .
+
+# 4. Expose and Run
+EXPOSE 8001
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
