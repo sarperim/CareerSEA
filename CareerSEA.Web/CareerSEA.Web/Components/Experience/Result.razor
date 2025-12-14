@@ -4,6 +4,7 @@
 @using CareerSEA.Web  @* Ensure this using statement points to where you put PredictionState.cs *@
 @inject PredictionState predictionState
 @inject NavigationManager NavigationManager
+@inject TokenStore tokenStore
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
 
@@ -38,7 +39,7 @@
                             CURRENT PROFILE
                         </MudText>
                         <MudText Typo="Typo.h6" Class="font-weight-bold">
-                            User Profile
+                            @tokenStore.Username
                         </MudText>
                     </MudItem>
 

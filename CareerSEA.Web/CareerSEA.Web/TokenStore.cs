@@ -4,6 +4,7 @@
 
     public class TokenStore
     {
+        public string Username { get; set; }
         private readonly ProtectedSessionStorage _storage;
         private const string AccessTokenKey = "access_token";
         private const string RefreshTokenKey = "refresh_token";
