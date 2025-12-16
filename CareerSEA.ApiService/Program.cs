@@ -14,8 +14,23 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddNpgsqlDbContext<CareerSEADbContext>("webAppDb");
 
+builder.Services.AddServiceDiscovery();
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IExperiencePredictionService, ExperiencePredictionService>();
+
+builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictionService>(client =>
+{
+    var aiUrl = builder.Configuration["services:aiservice:api:0"];
+
+    // 2. Fallback for local development (if the config is empty)
+    if (string.IsNullOrEmpty(aiUrl))
+    {
+        aiUrl = "http://aiservice:8001";
+    }
+
+    client.BaseAddress = new Uri(aiUrl);
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
