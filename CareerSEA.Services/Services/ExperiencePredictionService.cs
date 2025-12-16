@@ -19,9 +19,9 @@ namespace CareerSEA.Services.Services
     {
         public CareerSEADbContext _dbContext;
         public HttpClient _httpClient;
-        public ExperiencePredictionService(CareerSEADbContext dbContext, IHttpClientFactory httpClientFactory)
+        public ExperiencePredictionService(CareerSEADbContext dbContext, HttpClient httpClient)
         {
-            _httpClient = httpClientFactory.CreateClient();
+            _httpClient = httpClient;
             _dbContext = dbContext;
         }
         public async Task<BaseResponse> GetForms(Guid userId)
@@ -100,7 +100,7 @@ namespace CareerSEA.Services.Services
 
                 // Send POST request to Python API
                 // Ensure this URL matches where your Python script is running
-                var httpResponse = await _httpClient.PostAsync("http://localhost:8001/predict", jsonContent);
+                var httpResponse = await _httpClient.PostAsync("/predict", jsonContent);
 
                 if (httpResponse.IsSuccessStatusCode)
                 {
