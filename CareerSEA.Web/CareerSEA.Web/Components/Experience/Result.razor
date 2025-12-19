@@ -1,14 +1,22 @@
 ﻿@page "/result"
 @rendermode InteractiveServer
 @using MudBlazor
-@using CareerSEA.Web  @* Ensure this using statement points to where you put PredictionState.cs *@
+@using CareerSEA.Web
 @inject PredictionState predictionState
 @inject NavigationManager NavigationManager
 @inject TokenStore tokenStore
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
 
-    <MudCard Elevation="4" Class="rounded-xl">
+    <MudCard Elevation="4" Class="rounded-xl position-relative">
+
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Href="/experience"
+                       Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       Size="Size.Small"
+                       Class="absolute left-0 top-0 ma-4 z-10"
+                       Style="border-color: var(--mud-palette-lines-default);" />
 
         <MudCardHeader Class="d-flex flex-column align-center py-8">
             <CardHeaderContent>
@@ -63,12 +71,13 @@
                 </MudGrid>
 
                 <div class="mb-8">
-                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Top 5 Job Picks</MudText>
+                    @* UPDATED TEXT *@
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Top 3 Job Picks</MudText>
 
                     @if (_data.Recommendations.Any())
                     {
                         <MudStack Spacing="3">
-                            @foreach (var job in _data.Recommendations.OrderByDescending(x => x.Score).Take(5))
+                            @foreach (var job in _data.Recommendations.OrderByDescending(x => x.Score).Take(3))
                             {
                                 var percentage = (int)(job.Score * 100);
 
@@ -100,7 +109,7 @@
                         </MudListItem>
                         <MudListItem Icon="@Icons.Material.Filled.TrendingUp" IconColor="Color.Primary">
                             <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                Update your resume to highlight skills relevant to the <strong>Top 5</strong> identified roles.
+                                Update your resume to highlight skills relevant to the <strong>Top 3</strong> identified roles.
                             </MudText>
                         </MudListItem>
                         <MudListItem Icon="@Icons.Material.Filled.School" IconColor="Color.Primary">
@@ -121,15 +130,7 @@
 
     protected override void OnInitialized()
     {
-        // GET DATA FROM STATE
         _data = predictionState.Result;
-
-        // If user accessed page directly without submitting form, redirect back
-        if (_data == null)
-        {
-            // Optional: Auto-redirect
-            // NavigationManager.NavigateTo("/experience");
-        }
     }
 
     private Color GetColorByScore(float score)
