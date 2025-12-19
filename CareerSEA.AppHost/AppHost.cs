@@ -1,8 +1,8 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
 var postgres = builder.AddPostgres("postgres")
-    .WithImage("pgvector/pgvector", "pg17")
-    .WithDataVolume();
+    .WithImage("pgvector/pgvector", "pg17");
+   // .WithDataVolume();
 /*
 var pythonApi = builder.AddPythonApp("aiservice", "../CareerSEA.Py", "main.py")
                        .WithHttpEndpoint(port: 8000, targetPort: 8001) 

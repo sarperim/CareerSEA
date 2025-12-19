@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Polly;
 using System;
 using System.Text;
 
@@ -23,14 +24,24 @@ builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictio
 {
     var aiUrl = builder.Configuration["services:aiservice:api:0"];
 
-    // 2. Fallback for local development (if the config is empty)
     if (string.IsNullOrEmpty(aiUrl))
     {
         aiUrl = "http://aiservice:8001";
     }
+    if (aiUrl.Contains("azurecontainerapps.io") && aiUrl.StartsWith("http://"))
+    {
+        aiUrl = aiUrl.Replace("http://", "https://");
+    }
 
     client.BaseAddress = new Uri(aiUrl);
-});
+    client.Timeout = TimeSpan.FromMinutes(3);
+}).AddTransientHttpErrorPolicy(policy =>
+    policy.WaitAndRetryAsync(
+        retryCount: 3,
+        sleepDurationProvider: retryAttempt =>
+            TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) // 2s, 4s, 8s
+    )
+);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
