@@ -40,8 +40,8 @@ CareerSEA is a collaborative effort combining Full Stack Engineering with advanc
 | Team Member | Focus Area | Key Responsibilities |
 | :--- | :--- | :--- |
 | **Sarp** | **Full Stack & DevOps** | Blazor Frontend, ASP.NET Backend, .NET Aspire Orchestration, Docker Management, Database Design, and Cloud Deployment. |
-| **Emir** | **AI Engineering** | Fine-tuning the CareerBERT model and implementing Cosine Similarity algorithms. |
-| **Alphan** | **AI Engineering** | Fine-tuning the CareerBERT model and implementing Cosine Similarity algorithms. |
+| **Emir** | **AI Engineering** | Dataset preprocessing, BERT model fine-tuning and embeddings extraction. |
+| **Alphan** | **AI Engineering** | AI model integration with FastAPI, recommendations generation. |
 
 ---
 
@@ -64,5 +64,7 @@ This project uses **.NET Aspire** to spin up the frontend, backend, AI service, 
 
 ---
 
-### 📚 References
-* Rosenberger, J., et al. (2025). *CareerBERT: Matching Resumes to ESCO Jobs*.
+### References
+* Rosenberger, J., Wolfrum, L., Weinzierl, S., Kraus, M., & Zschech, P. (2025). CareerBERT: Matching Resumes to ESCO Jobs in a Shared Embedding Space for Generic Job Recommendations. ArXiv.org. https://arxiv.org/abs/2503.02056
+* Senger, E., Campbell, Y., van, & Plank, B. (2024). KARRIEREWEGE: A Large Scale Career Path Prediction Dataset. ArXiv.org. https://arxiv.org/abs/2412.14612
+‌
