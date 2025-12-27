@@ -4,6 +4,8 @@
 
 **CareerSEA** is a cloud-native and AI-powered web application that provides personalized career path predictions based on their previous job titles, descriptions, and skills. The system leverages a fine-tuned transformer-based ML-model (BERT) and semantic job embeddings to provide data-driven, personalized career guidance to help new graduates, students and professionals navigate the job market with confidence.
 
+![PHOTO-2025-12-12-15-16-03](https://github.com/user-attachments/assets/147340ce-17e2-4a82-9607-2b1ae214c6f1)
+
 ---
 
 ## The Problem
