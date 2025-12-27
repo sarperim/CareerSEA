@@ -33,14 +33,14 @@ We utilize a **Service-Based Architecture** orchestrated by **.NET Aspire**:
 
 ### Dataset Details
 1. Source: KARRIEREWEGE (German Employment Agency)
-	•	Features used:
-	    •   preferredLabel_en (Job title)
-	    •	description_en (Job description)
-	    •	skills (ESCO skills)
-2. Label Processing:
-	    •	String labels → numeric IDs
-	    •	Low-frequency labels filtered
-	    •	Balanced sampling
+2. Features used:
+	1. preferredLabel_en (Job title)
+	2. description_en (Job description)
+	3. skills (ESCO skills)
+3. Label Processing:
+	1. String labels → numeric IDs
+	2. Low-frequency labels filtered
+	3. Balanced sampling
 
 ---
 
