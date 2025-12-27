@@ -31,13 +31,13 @@ We utilize a **Service-Based Architecture** orchestrated by **.NET Aspire**:
 | **Database** | **PostgreSQL** | Stores user profiles and career data. |
 | **Orchestration** | **.NET Aspire** | Manages containers and service discovery. |
 
-Dataset Details
-	•	Source: KARRIEREWEGE (German Employment Agency)
+### Dataset Details
+1. Source: KARRIEREWEGE (German Employment Agency)
 	•	Features used:
 	    •   preferredLabel_en (Job title)
 	    •	description_en (Job description)
 	    •	skills (ESCO skills)
-	•	Label Processing:
+2. Label Processing:
 	    •	String labels → numeric IDs
 	    •	Low-frequency labels filtered
 	    •	Balanced sampling
@@ -75,7 +75,7 @@ This project uses **.NET Aspire** to spin up the frontend, backend, AI service, 
 
 ---
 
-### References
+## References
 * Rosenberger, J., Wolfrum, L., Weinzierl, S., Kraus, M., & Zschech, P. (2025). CareerBERT: Matching Resumes to ESCO Jobs in a Shared Embedding Space for Generic Job Recommendations. ArXiv.org. https://arxiv.org/abs/2503.02056
 * Senger, E., Campbell, Y., van, & Plank, B. (2024). KARRIEREWEGE: A Large Scale Career Path Prediction Dataset. ArXiv.org. https://arxiv.org/abs/2412.14612
 ‌
