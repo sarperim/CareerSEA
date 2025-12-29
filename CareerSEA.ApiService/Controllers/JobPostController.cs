@@ -16,7 +16,7 @@ namespace CareerSEA.ApiService.Controllers
             _jobPostService= adzunaService;
         }
 
-        [HttpGet]
+        [HttpGet("jobs")]
         public async Task<IActionResult> SearchJobs([FromQuery] string query, [FromQuery] string country = "gb")
         {
             if (string.IsNullOrEmpty(query)) return BadRequest("Query is required");
@@ -25,7 +25,7 @@ namespace CareerSEA.ApiService.Controllers
             {
                 // Controller delegates work to the Service
                 var jobs = await _jobPostService.SearchJobsAsync(query, country);
-                return Ok(jobs);
+                return Ok(jobs.ToList());
             }
             catch (InvalidOperationException ex)
             {
