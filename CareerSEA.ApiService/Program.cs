@@ -19,6 +19,7 @@ builder.Services.AddServiceDiscovery();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IExperiencePredictionService, ExperiencePredictionService>();
+builder.Services.AddScoped<IJobPostService,JobPostService>();
 
 builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictionService>(client =>
 {

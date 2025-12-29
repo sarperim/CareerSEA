@@ -362,3 +362,24 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 .azure
+
+# =======================================================
+#  CUSTOM ADDITIONS FOR CAREERSEA (PYTHON + SECRETS)
+# =======================================================
+
+# 1. PYTHON VIRTUAL ENVIRONMENTS
+# (Missing from the standard VS ignore file)
+venv/
+env/
+.env
+
+# 2. JUPYTER NOTEBOOKS
+.ipynb_checkpoints/
+
+# 3. CRITICAL SECRETS
+# Ignore the file with real keys
+appsettings.json
+appsettings.Development.json
+
+# But allow the example template so others know the structure
+!appsettings.Example.json
