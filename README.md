@@ -1,21 +1,23 @@
 # 🌊 CareerSEA 
 
-![Status](https://img.shields.io/badge/status-development-orange)
-![.NET](https://img.shields.io/badge/.NET-8.0-purple)
-![Python](https://img.shields.io/badge/python-3.11-blue)
-![Aspire](https://img.shields.io/badge/Aspire-Orchestration-green)
+**AI-Powered Personalized Career Path Recommendation Platform**
 
-**CareerSEA** is a cloud-native web application that uses advanced AI to provide personalized career predictions, helping graduates and professionals navigate the job market with confidence.
+**CareerSEA** is a cloud-native and AI-powered web application that provides personalized career path predictions based on their previous job titles, descriptions, and skills. The system leverages a fine-tuned transformer-based ML-model (BERT) and semantic job embeddings to provide data-driven, personalized career guidance to help new graduates, students and professionals navigate the job market with confidence.
+
+![PHOTO-2025-12-12-15-16-03](https://github.com/user-attachments/assets/147340ce-17e2-4a82-9607-2b1ae214c6f1)
 
 ---
 
 ## The Problem
-Career counseling is often expensive, static, or based on ineffective keyword matching. This leads to misalignment, low job satisfaction, and constant "job hopping."
+Career counseling is often expensive, static, based on ineffective keyword matching, and non-personalized. This leads to misalignment, low job satisfaction, and constant "job hopping."
 
-##  The Solution
-We bridge the gap by offering accessible, data-driven career guidance.
-* **Personalized AI:** Uses **CareerBERT** (Rosenberger et al., 2025) and **Cosine Similarity** to match user resumes against a massive dataset of job descriptions.
-* **Dynamic & Scalable:** A polyglot distributed system designed for parallel development and high availability.
+## The Solution
+CareerSEA addresses this gap by:
+* Offering personalized, data-driven, and AI-based career guidance.
+* Implementing a similar approach as **CareerBERT** (Rosenberger et al., 2025) suggests and **Cosine Similarity** method is used to match user resumes embeddings against a massive dataset of job embeddings.
+* A polyglot distributed system designed for parallel development and high availability.
+* Leveraging large-scale ESCO-mapped datasets.
+* Remaining free and globally accessible.
 
 ---
 
@@ -27,9 +29,20 @@ We utilize a **Service-Based Architecture** orchestrated by **.NET Aspire**:
 | :--- | :--- | :--- |
 | **Frontend** | **Blazor Auto** | Hybrid rendering for a fast, interactive UI. |
 | **Backend** | **ASP.NET Core** | REST API with Swagger UI. |
-| **AI Engine** | **Python (FastAPI)** | Fine-tuned CareerBERT model for vector embeddings. |
+| **AI Model** | **Python (FastAPI)** | Fine-tuned BERT (bert-large-uncased-whole-word-masking) model for semantic job and user embedding extraction. Cosine similarity for semantic matching and recommendation system. |
 | **Database** | **PostgreSQL** | Stores user profiles and career data. |
 | **Orchestration** | **.NET Aspire** | Manages containers and service discovery. |
+
+### Dataset Details
+1. Source: KARRIEREWEGE (German Employment Agency)
+2. Features used:
+	1. preferredLabel_en (Job title)
+	2. description_en (Job description)
+	3. skills (ESCO skills)
+3. Label Processing:
+	1. String labels → numeric IDs
+	2. Low-frequency labels filtered
+	3. Balanced sampling
 
 ---
 
@@ -40,8 +53,8 @@ CareerSEA is a collaborative effort combining Full Stack Engineering with advanc
 | Team Member | Focus Area | Key Responsibilities |
 | :--- | :--- | :--- |
 | **Sarp** | **Full Stack & DevOps** | Blazor Frontend, ASP.NET Backend, .NET Aspire Orchestration, Docker Management, Database Design, and Cloud Deployment. |
-| **Emir** | **AI Engineering** | Fine-tuning the CareerBERT model and implementing Cosine Similarity algorithms. |
-| **Alphan** | **AI Engineering** | Fine-tuning the CareerBERT model and implementing Cosine Similarity algorithms. |
+| **Emir** | **AI Engineering** | Dataset preprocessing, BERT model fine-tuning, embeddings extraction and cosine similarity matching. |
+| **Alphan** | **AI Engineering** | AI model integration with FastAPI, recommendations generation. |
 
 ---
 
@@ -51,18 +64,20 @@ This project uses **.NET Aspire** to spin up the frontend, backend, AI service, 
 
 1.  **Clone the repo:**
     ```bash
-    git clone [https://github.com/yourusername/CareerSEA.git](https://github.com/yourusername/CareerSEA.git)
+    git clone [https://github.com/sarperim/CareerSEA.git
     ```
 2.  **Install Python dependencies:**
     ```bash
-    pip install -r src/CareerSEA.AI/requirements.txt
+    pip install -r src/CareerSEA.Py/requirements.txt
     ```
 3.  **Run the AppHost:**
     ```bash
-    dotnet run --project src/CareerSEA.AppHost
+    cd CareerSEA.AppHost && dotnet run
     ```
 
 ---
 
-### 📚 References
-* Rosenberger, J., et al. (2025). *CareerBERT: Matching Resumes to ESCO Jobs*.
+## References
+* Rosenberger, J., Wolfrum, L., Weinzierl, S., Kraus, M., & Zschech, P. (2025). CareerBERT: Matching Resumes to ESCO Jobs in a Shared Embedding Space for Generic Job Recommendations. ArXiv.org. https://arxiv.org/abs/2503.02056
+* Senger, E., Campbell, Y., van, & Plank, B. (2024). KARRIEREWEGE: A Large Scale Career Path Prediction Dataset. ArXiv.org. https://arxiv.org/abs/2412.14612
+‌
