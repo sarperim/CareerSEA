@@ -1,5 +1,6 @@
 ﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using CareerSEA.Contracts.DTOs; // Ensure this namespace matches where your DTO is
 
 namespace CareerSEA.Web;
 
@@ -24,6 +25,7 @@ public class ServerApiClient
         }
     }
 
+    // --- GENERIC METHODS ---
 
     public async Task<HttpResponseMessage> PostAsync<T>(string url, T model)
     {
@@ -37,24 +39,36 @@ public class ServerApiClient
         return await _client.GetFromJsonAsync<T>(url);
     }
 
-    // --- NEW METHOD (Used by Login.razor) ---
-
-    // This overload takes two types: Request and Response. 
-    // It automatically reads the JSON from the result.
     public async Task<TResponse?> PostAsync<TRequest, TResponse>(string url, TRequest model)
     {
         await AddAuthHeader();
         var response = await _client.PostAsJsonAsync(url, model);
 
-        // We attempt to read the response even if it failed (e.g. 400 Bad Request),
         try
         {
             return await response.Content.ReadFromJsonAsync<TResponse>();
         }
         catch
         {
-            // If the server returns purely text or HTML (500 error), return default/null
             return default;
         }
+    }
+
+    // --- SPECIFIC METHODS (Business Logic) ---
+
+    // This is the 2-argument method your UI is trying to call
+    public async Task<List<JobListingDto>> SearchJobsAsync(string query, string country)
+    {
+        await AddAuthHeader();
+
+        // Handle URL encoding safely
+        var safeQuery = Uri.EscapeDataString(query);
+
+        // Build the URL with query parameters
+        // Example: api/JobPost/jobs?query=Developer&country=gb
+        var url = $"api/JobPost/jobs?query={safeQuery}&country={country}";
+
+        // Return empty list if null to prevent UI crashes
+        return await _client.GetFromJsonAsync<List<JobListingDto>>(url) ?? new List<JobListingDto>();
     }
 }

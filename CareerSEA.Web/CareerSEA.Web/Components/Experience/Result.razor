@@ -1,101 +1,161 @@
 ﻿@page "/result"
 @rendermode InteractiveServer
+
+@using CareerSEA.Contracts.DTOs
 @using MudBlazor
 @using CareerSEA.Web
+
 @inject PredictionState predictionState
 @inject NavigationManager NavigationManager
 @inject TokenStore tokenStore
+@inject ServerApiClient ApiClient
+
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
 
     <MudCard Elevation="4" Class="rounded-xl position-relative">
 
         <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-                       Href="/experience"
                        Variant="Variant.Outlined"
                        Color="Color.Secondary"
                        Size="Size.Small"
                        Class="absolute left-0 top-0 ma-4 z-10"
-                       Style="border-color: var(--mud-palette-lines-default);" />
+                       OnClick="@(() => NavigationManager.NavigateTo("/experience"))" />
 
         <MudCardHeader Class="d-flex flex-column align-center py-8">
-            <CardHeaderContent>
-                <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold mb-1">
-                    AI Analysis Results
-                </MudText>
-                <MudText Typo="Typo.body2" Align="Align.Center" Class="mud-text-secondary">
-                    Here is the prediction based on your profile and the target job.
-                </MudText>
-            </CardHeaderContent>
+            <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold">
+                AI Analysis Results
+            </MudText>
         </MudCardHeader>
 
         <MudCardContent Class="pa-8">
 
             @if (_data == null)
             {
-                <MudAlert Severity="Severity.Warning" Class="my-4">
-                    No analysis data found. Please go back and submit your experience.
-                    <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/experience">Go to Dashboard</MudButton>
+                <MudAlert Severity="Severity.Warning">
+                    Analysis data not found. Please run the experience analysis again.
                 </MudAlert>
             }
             else
             {
-                <MudGrid Class="pb-8 mb-8" Spacing="4" Justify="Justify.Center" Style="border-bottom: 1px solid var(--mud-palette-lines-default);">
-
+                <MudGrid Spacing="4" Justify="Justify.Center" Class="mb-8 border-b pb-8 mud-border-lines-default">
                     <MudItem xs="12" sm="4" Class="d-flex flex-column align-center">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold text-uppercase mb-2" Style="letter-spacing: 0.05em;">
-                            CURRENT PROFILE
-                        </MudText>
-                        <MudText Typo="Typo.h6" Class="font-weight-bold">
-                            @tokenStore.Username
-                        </MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold">CURRENT PROFILE</MudText>
+                        <MudText Typo="Typo.h6">@tokenStore.Username</MudText>
                     </MudItem>
 
                     <MudItem xs="12" sm="4" Class="d-flex flex-column align-center">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold text-uppercase mb-2" Style="letter-spacing: 0.05em;">
-                            BEST JOB MATCH
-                        </MudText>
-                        <MudText Typo="Typo.h6" Class="font-weight-bold text-capitalize" Color="@GetColorByScore(_data.MatchScore)" Align="Align.Center">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold">BEST MATCH</MudText>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold text-capitalize" Color="@GetColorByScore(_data.MatchScore)">
                             @(_data.BestJob ?? "Unknown")
                         </MudText>
+
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   Class="mt-2"
+                                   Disabled="@_isLoading"
+                                   OnClick="@(() => SearchJobsAsync(_data.BestJob))">
+                            @(_isLoading && _currentSearchTerm == _data.BestJob ? "Loading..." : "View Openings")
+                        </MudButton>
                     </MudItem>
 
                     <MudItem xs="12" sm="4" Class="d-flex flex-column align-center">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold text-uppercase mb-2" Style="letter-spacing: 0.05em;">
-                            MATCH SCORE
-                        </MudText>
-                        <MudText Typo="Typo.h3" Class="font-weight-bold" Color="@GetColorByScore(_data.MatchScore)" Style="line-height:1;">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold">SCORE</MudText>
+                        <MudText Typo="Typo.h3" Class="font-weight-bold" Color="@GetColorByScore(_data.MatchScore)">
                             @((_data.MatchScore * 100).ToString("0"))%
                         </MudText>
                     </MudItem>
                 </MudGrid>
 
                 <div class="mb-8">
-                    @* UPDATED TEXT *@
-                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Top 3 Job Picks</MudText>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Top 3 Alternatives</MudText>
 
                     @if (_data.Recommendations.Any())
                     {
                         <MudStack Spacing="3">
-                            @foreach (var job in _data.Recommendations.OrderByDescending(x => x.Score).Take(3))
+                            @foreach (var job in _data.Recommendations.OrderByDescending(r => r.Score).Take(3))
                             {
-                                var percentage = (int)(job.Score * 100);
+                                var percent = (int)(job.Score * 100);
 
-                                <MudPaper Elevation="0" Outlined="true" Class="pa-4 rounded-lg">
+                                <MudPaper Outlined="true" Class="pa-4 rounded-lg">
                                     <div class="d-flex justify-space-between align-center mb-2">
-                                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-capitalize">
-                                            @job.Label
-                                        </MudText>
-                                        <MudChip T="string" Size="Size.Small" Color="GetColorByScore(job.Score)" Variant="Variant.Text" Class="font-weight-bold">
-                                            @percentage% Match
+                                        <div class="d-flex align-center gap-2">
+                                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@job.Label</MudText>
+
+                                            <MudIconButton Icon="@Icons.Material.Filled.Search"
+                                                           Size="Size.Small"
+                                                           OnClick="@(() => SearchJobsAsync(job.Label))"
+                                                           Color="@(_currentSearchTerm == job.Label ? Color.Primary : Color.Default)" />
+                                        </div>
+                                        <MudChip T="string" Size="Size.Small" Color="@GetColorByScore(job.Score)" Variant="Variant.Text">
+                                            @percent% Match
                                         </MudChip>
                                     </div>
-                                    <MudProgressLinear Value="@percentage" Color="GetColorByScore(job.Score)" Size="Size.Medium" Rounded="true" Class="mud-width-full" />
+                                    <MudProgressLinear Value="@percent" Color="@GetColorByScore(job.Score)" Rounded="true" Size="Size.Medium" />
                                 </MudPaper>
                             }
                         </MudStack>
                     }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Info">No alternative recommendations available.</MudAlert>
+                    }
                 </div>
+
+                @if (!string.IsNullOrEmpty(_currentSearchTerm))
+                {
+                    <MudDivider Class="my-8" />
+
+                    <div class="mb-8 animate-fade-in">
+                        <MudText Typo="Typo.h6" Class="font-weight-bold mb-2">
+                            Active Listings: <span class="mud-text-primary">@_currentSearchTerm</span>
+                        </MudText>
+
+                        @if (_isLoading)
+                        {
+                            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4 rounded" />
+                        }
+                        else if (!string.IsNullOrEmpty(_errorMessage))
+                        {
+                            <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@_errorMessage</MudAlert>
+                        }
+                        else if (_jobListings.Any())
+                        {
+                            <MudPaper Elevation="0" Outlined="true" Class="rounded-lg overflow-hidden">
+                                <div style="max-height: 400px; overflow-y: auto;">
+                                    <MudList T="string" Dense="true" Clickable="true">
+                                        @foreach (var job in _jobListings)
+                                        {
+                                            <MudListItem Href="@job.Link" Target="_blank">
+                                                <div class="d-flex justify-space-between align-center">
+                                                    <div>
+                                                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@job.Title</MudText>
+                                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@job.Company • @job.Location</MudText>
+                                                    </div>
+                                                    <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Default" />
+                                                </div>
+                                            </MudListItem>
+                                            <MudDivider Light="true" />
+                                        }
+                                    </MudList>
+                                </div>
+                                <div class="pa-2 bg-gray-100 border-t">
+                                    <MudText Typo="Typo.caption" Align="Align.Center" Class="d-block mud-text-secondary">
+                                        Jobs provided by Adzuna
+                                    </MudText>
+                                </div>
+                            </MudPaper>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true">No active listings found for this specific title.</MudAlert>
+                        }
+                    </div>
+                }
 
                 <MudDivider Class="my-8" />
 
@@ -127,21 +187,50 @@
 
 @code {
     private AnalysisData? _data;
+    private List<JobListingDto> _jobListings = new();
+    private bool _isLoading;
+    private string _currentSearchTerm = string.Empty;
+    private string _errorMessage = string.Empty;
 
     protected override void OnInitialized()
     {
         _data = predictionState.Result;
+        if (_data?.Recommendations == null && _data != null)
+        {
+            _data.Recommendations = new();
+        }
     }
 
-    private Color GetColorByScore(float score)
+    private async Task SearchJobsAsync(string? jobTitle)
     {
-        return score switch
+        if (string.IsNullOrWhiteSpace(jobTitle)) return;
+
+        _currentSearchTerm = jobTitle;
+        _isLoading = true;
+        _errorMessage = "";
+        _jobListings.Clear();
+        StateHasChanged();
+
+        try
         {
-            >= 0.60f => Color.Success,
-            >= 0.55f => Color.Primary,
-            >= 0.50f => Color.Info,
-            >= 0.40f => Color.Warning,
-            _ => Color.Error
-        };
+            _jobListings = await ApiClient.SearchJobsAsync(jobTitle, "gb");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Failed to load jobs. " + ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
     }
+
+    private Color GetColorByScore(float score) => score switch
+    {
+        >= 0.6f => Color.Success,
+        >= 0.5f => Color.Primary,
+        >= 0.4f => Color.Warning,
+        _ => Color.Error
+    };
 }
