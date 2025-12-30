@@ -1,10 +1,10 @@
 # 🌊 CareerSEA 
 
-**AI-Powered Personalized Career Path Recommendation Platform**
+**Career Path Consultant Based on Skills and Interests**
 
 **CareerSEA** is a cloud-native and AI-powered web application that provides personalized career path predictions based on their previous job titles, descriptions, and skills. The system leverages a fine-tuned transformer-based ML-model (BERT) and semantic job embeddings to provide data-driven, personalized career guidance to help new graduates, students and professionals navigate the job market with confidence.
 
-![PHOTO-2025-12-12-15-16-03](https://github.com/user-attachments/assets/147340ce-17e2-4a82-9607-2b1ae214c6f1)
+<img width="1227" height="792" alt="image" src="https://github.com/user-attachments/assets/42d21063-b2ef-4509-9467-41364c46bf7c" />
 
 ---
 
@@ -43,18 +43,6 @@ We utilize a **Service-Based Architecture** orchestrated by **.NET Aspire**:
 	1. String labels → numeric IDs
 	2. Low-frequency labels filtered
 	3. Balanced sampling
-
----
-
-## Team & Responsibilities
-
-CareerSEA is a collaborative effort combining Full Stack Engineering with advanced ML research.
-
-| Team Member | Focus Area | Key Responsibilities |
-| :--- | :--- | :--- |
-| **Sarp** | **Full Stack & DevOps** | Blazor Frontend, ASP.NET Backend, .NET Aspire Orchestration, Docker Management, Database Design, and Cloud Deployment. |
-| **Emir** | **AI Engineering** | Dataset preprocessing, BERT model fine-tuning, embeddings extraction and cosine similarity matching. |
-| **Alphan** | **AI Engineering** | AI model integration with FastAPI, recommendations generation. |
 
 ---
 
