@@ -52,7 +52,7 @@ This project uses **.NET Aspire** to spin up the frontend, backend, AI service, 
 
 1.  **Clone the repo:**
     ```bash
-    git clone [https://github.com/sarperim/CareerSEA.git
+    git clone [https://github.com/sarperim/CareerSEA.git]
     ```
 2.  **Install Python dependencies:**
     ```bash
