@@ -23,7 +23,6 @@ namespace CareerSEA.ApiService.Controllers
 
             try
             {
-                // Controller delegates work to the Service
                 var jobs = await _jobPostService.SearchJobsAsync(query, country);
                 return Ok(jobs.ToList());
             }

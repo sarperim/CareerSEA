@@ -41,10 +41,8 @@ namespace CareerSEA.Services.Services
             var queryString = await new FormUrlEncodedContent(queryParams).ReadAsStringAsync();
             var url = $"https://api.adzuna.com/v1/api/jobs/{country}/search/1?{queryString}";
 
-            // 2. Send Request
             var response = await _httpClient.GetAsync(url);
 
-            // 3. NUCLEAR FIX: Read as Bytes to bypass invalid Charset Header
             var responseBytes = await response.Content.ReadAsByteArrayAsync();
             var jsonString = System.Text.Encoding.UTF8.GetString(responseBytes);
 
@@ -71,7 +69,6 @@ namespace CareerSEA.Services.Services
             }) ?? Enumerable.Empty<JobListingDto>();
         }
 
-        // Internal classes for JSON Deserialization (Keep these private or internal to avoid pollution)
         private class AdzunaResponse { public List<AdzunaJob> Results { get; set; } = new(); }
         private class AdzunaJob
         {
