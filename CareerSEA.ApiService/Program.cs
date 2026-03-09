@@ -20,6 +20,22 @@ builder.Services.AddServiceDiscovery();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IExperiencePredictionService, ExperiencePredictionService>();
 builder.Services.AddScoped<IJobPostService,JobPostService>();
+builder.Services.AddScoped<ILlamaInputService,LlamaInputService>();
+
+
+builder.AddOllamaApiClient("ollamaModel").AddChatClient();
+builder.Services.AddHttpClient("ollamaModel_httpClient")
+    .AddStandardResilienceHandler(options =>
+    {
+        // 1. Give it 5 minutes for the "Cold Start" on your 3050
+        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(300);
+
+        // 2. TOTAL must be at least as long as the attempt
+        options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(300);
+
+        // 3. CRITICAL: This must be DOUBLE the Attempt Timeout (600s)
+        options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(600);
+    });
 
 builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictionService>(client =>
 {
