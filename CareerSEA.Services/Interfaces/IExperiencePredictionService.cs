@@ -13,6 +13,7 @@ namespace CareerSEA.Services.Interfaces
     {
         Task<BaseResponse> GetForms(Guid userId);
         Task<BaseResponse> SaveForm(ExperienceRequest response,Guid userId);
+        Task<BaseResponse> PredictFromLlamaOutput(AIRequest llamaOutput, Guid userId);
 
     }
 }

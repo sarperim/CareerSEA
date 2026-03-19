@@ -7,18 +7,20 @@
 @using MudBlazor
 @using System.Text.Json
 @using CareerSEA.Web
+@using iText.Kernel.Pdf
+@using iText.Kernel.Pdf.Canvas.Parser
+@using System.IO
 
 @inject ServerApiClient apiClient
 @inject ISnackbar Snackbar
 @inject PredictionState predictionState
-@inject NavigationManager NavManager 
+@inject NavigationManager NavManager
 
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex justify-center" Style="min-height: 90vh; padding: 0.25rem 0.5rem;">
-    @* ... (Keep your existing UI code exactly the same) ... *@
-    
+
     <MudCard Elevation="20" Class="w-100" Style="max-width: 56rem;">
         <MudCardHeader Class="border-b-1 border-solid border-lines-default pa-6">
             <CardHeaderContent>
@@ -30,8 +32,23 @@
         </MudCardHeader>
 
         <MudCardContent Class="pa-8">
-            @* ... (Keep your list and form UI exactly the same) ... *@
-            
+
+            @* --- UPLOAD CV SECTION --- *@
+            <MudText Typo="Typo.h6" GutterBottom="true">Quick Upload</MudText>
+            <MudPaper Variant="Variant.Outlined" Class="pa-4 mb-8 d-flex flex-column align-center" Style="border-style: dashed; background-color: var(--mud-palette-background-grey);">
+                <MudFileUpload T="IBrowserFile" FilesChanged="UploadAndAnalyzeCv" Accept=".pdf">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.CloudUpload"
+                                   Disabled="@_isSaving">
+                            Upload PDF CV
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+                <MudText Typo="Typo.caption" Class="mt-2">Llama will automatically extract data from your PDF</MudText>
+            </MudPaper>
+
             <MudText Typo="Typo.h6" GutterBottom="true">Saved Experiences</MudText>
 
             @if (_isLoading)
@@ -71,8 +88,7 @@
                 <DataAnnotationsValidator />
 
                 <MudGrid Spacing="3">
-                     @* ... (Keep your input fields exactly the same) ... *@
-                     <MudItem xs="12">
+                    <MudItem xs="12">
                         <MudSelectExtended T="string"
                                            @rendermode="InteractiveAuto"
                                            @bind-Value="model.Title"
@@ -157,23 +173,44 @@
             await LoadExperiencesAsync();
         }
     }
-    private async Task HandleValidSubmit()
+
+    // NEW METHOD FOR PDF UPLOAD
+    private async Task UploadAndAnalyzeCv(IBrowserFile file)
     {
-        // ... (Your validation checks) ...
+        if (file == null) return;
 
         _isSaving = true;
         try
         {
-            var response = await apiClient.PostAsync<ExperienceRequest, BaseResponse>("api/ExperiencePrediction/Predict", model);
+            // 1. Extract text from PDF
+            string extractedText = "";
+            using (var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
+            using (var ms = new MemoryStream())
+            {
+                await stream.CopyToAsync(ms);
+                ms.Position = 0;
+                using (var pdfReader = new PdfReader(ms))
+                using (var pdfDoc = new PdfDocument(pdfReader))
+                {
+                    for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
+                    {
+                        extractedText += PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i)) + " ";
+                    }
+                }
+            }
 
+            if (string.IsNullOrWhiteSpace(extractedText)) throw new Exception("PDF is empty or unreadable.");
+
+            var request = new { cvText = extractedText };
+
+            var response = await apiClient.PostAsync<object, BaseResponse>("api/CvToInput/Parse", request);
+
+            // Reusing your exact JSON parsing logic from HandleValidSubmit
             if (response != null && response.Status)
             {
-
                 if (response.Data is System.Text.Json.JsonElement element)
                 {
-                    // DEBUG: Print the raw JSON to the console to verify what we actually got
                     var rawJson = element.GetRawText();
-
                     var options = new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true,
@@ -184,10 +221,56 @@
 
                     if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
                     {
-
-                        // Store in state
                         predictionState.Result = prediction;
+                        NavManager.NavigateTo("/result");
+                        Snackbar.Add("Analysis Complete!", Severity.Success);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Received data but could not read it.", Severity.Error);
+                    }
+                }
+            }
+            else
+            {
+                Snackbar.Add("Server error: " + (response?.Message ?? "Unknown"), Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error: {ex}");
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
 
+    // YOUR EXACT EXISTING METHOD
+    private async Task HandleValidSubmit()
+    {
+        _isSaving = true;
+        try
+        {
+            var response = await apiClient.PostAsync<ExperienceRequest, BaseResponse>("api/ExperiencePrediction/Predict", model);
+
+            if (response != null && response.Status)
+            {
+                if (response.Data is System.Text.Json.JsonElement element)
+                {
+                    var rawJson = element.GetRawText();
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                    };
+
+                    var prediction = JsonSerializer.Deserialize<AnalysisData>(rawJson, options);
+
+                    if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
+                    {
+                        predictionState.Result = prediction;
                         NavManager.NavigateTo("/result");
                         Snackbar.Add("Analysis Complete!", Severity.Success);
                     }
@@ -214,6 +297,7 @@
         }
     }
 
+    // YOUR EXACT EXISTING METHOD
     private async Task LoadExperiencesAsync()
     {
         _isLoading = true;
@@ -237,7 +321,7 @@
 
                     if (element.ValueKind == JsonValueKind.Array)
                     {
-                        experienceModels = JsonSerializer.Deserialize<List<ExperienceRequest>>(element.GetRawText(), options) 
+                        experienceModels = JsonSerializer.Deserialize<List<ExperienceRequest>>(element.GetRawText(), options)
                                            ?? new List<ExperienceRequest>();
                     }
                     else if (element.ValueKind == JsonValueKind.Object)
@@ -255,6 +339,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error: {ex.Message}");
+            experienceModels = new List<ExperienceRequest>(); // Added this just to be safe
         }
         finally
         {
