@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\CareerSEA.ServiceDefaults\CareerSEA.ServiceDefaults.csproj" />
     <ProjectReference Include="..\CareerSEA.Web.Client\CareerSEA.Web.Client.csproj" />
     <PackageReference Include="CodeBeam.MudBlazor.Extensions" Version="8.3.0" />
+    <PackageReference Include="itext" Version="9.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.21" />
     <PackageReference Include="MudBlazor" Version="8.14.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

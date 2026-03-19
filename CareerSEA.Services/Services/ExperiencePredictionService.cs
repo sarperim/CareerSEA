@@ -155,5 +155,100 @@ namespace CareerSEA.Services.Services
 
 
         }
+
+        public async Task<BaseResponse> PredictFromLlamaOutput(AIRequest llamaOutput, Guid userId)
+        {
+            var existingUser = await _dbContext.Users.FirstOrDefaultAsync(a => a.Id == userId);
+            if (existingUser == null)
+            {
+                return new BaseResponse
+                {
+                    Status = false,
+                    Message = "User not found"
+                };
+            }
+
+            if (llamaOutput == null || llamaOutput.jobs == null || !llamaOutput.jobs.Any())
+            {
+                return new BaseResponse
+                {
+                    Status = false,
+                    Message = "No valid jobs found in the Llama output to send for prediction."
+                };
+            }
+
+            AIResponse aiResult = null;
+            try
+            {
+                // 1. Serialize the Llama output directly (it's already in the correct AIRequest format)
+                var jsonContent = new StringContent(
+                    JsonSerializer.Serialize(llamaOutput),
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                // 2. Send POST request to Python API
+                var httpResponse = await _httpClient.PostAsync("/predict", jsonContent);
+
+                if (httpResponse.IsSuccessStatusCode)
+                {
+                    var responseString = await httpResponse.Content.ReadAsStringAsync();
+
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    aiResult = JsonSerializer.Deserialize<AIResponse>(responseString, options);
+
+                    if (aiResult != null)
+                    {
+                        // 3. Map the data: Copy from AIResponse -> PredictionResult
+                        var dbResult = new PredictionResult
+                        {
+                            BestJob = aiResult.best_job,
+                            MatchScore = aiResult.match_score,
+                            Recommendations = aiResult.recommendations?.Select(r => new JobRecommendation
+                            {
+                                Label = r.label,
+                                Score = r.score
+                            }).ToList() ?? new List<JobRecommendation>()
+                        };
+
+                        // 4. Create the Database Entity
+                        var predictionEntry = new Prediction
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = userId,
+                            Result = dbResult
+                        };
+
+                        // 5. Save to DB
+                        await _dbContext.Predictions.AddAsync(predictionEntry);
+                        await _dbContext.SaveChangesAsync();
+                    }
+                }
+                else
+                {
+                    return new BaseResponse
+                    {
+                        Status = false,
+                        Message = $"Python API failed with status code: {httpResponse.StatusCode}"
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"AI Service Error: {ex.Message}");
+                return new BaseResponse
+                {
+                    Status = false,
+                    Message = "An error occurred while communicating with the prediction service."
+                };
+            }
+
+            return new BaseResponse
+            {
+                Status = true,
+                Message = "Success",
+                Data = aiResult
+            };
+        }
     }
 }

@@ -23,16 +23,15 @@ namespace CareerSEA.Services.Services
         }
         public async Task<AIRequest?> ExtractCareerDataAsync(string cvText, CancellationToken cancellationToken = default)
         {
-            // Notice the updated JSON schema in the prompt!
             var systemPrompt = @"You are a professional HR data extraction engine.
-TASK: Extract distinct professional experiences (Jobs or Major Projects) from the CV text.
+TASK: Extract distinct professional experiences from the CV text.
 
 STRICT EXTRACTION RULES:
-1. ENTITY GROUPING: A single 'job' entry must represent one continuous period of time at one organization or one specific project. 
-2. NO TECH-STACK SPLITTING: Do not create separate entries for different technical phases of the same project (e.g., do not split 'Backend' and 'Frontend' into two jobs if they belong to the same project).
-3. DESCRIPTION MAPPING: Summarize all related bullet points, tasks, and responsibilities into a single 2-3 sentence 'description' for that specific entity.
-4. TITLE FORMAT: The 'title' field must contain both the Role and the Organization/Project name (e.g., 'Intern at Company X' or 'Lead Developer - Project Y').
-5. SKILLS: Extract only the specific technical tools mentioned within the context of that specific role.
+1. ENTITY GROUPING: A single 'job' entry must represent one continuous period. 
+2. NO TECH-STACK SPLITTING: Do not create separate entries for different technical phases.
+3. DESCRIPTION MAPPING: Summarize all related tasks into a 2-3 sentence 'description'.
+4. TITLE FORMAT: The 'title' field must contain both the Role and the Organization name.
+5. SKILLS: Extract technical tools and return them as a SINGLE comma-separated string, NOT an array.
 
 JSON SCHEMA:
 {
@@ -40,10 +39,12 @@ JSON SCHEMA:
     {
       ""title"": ""string"",
       ""description"": ""string"",
-      ""skills"": ""string""
+      ""skills"": ""string (must be comma separated, do not use arrays)""
     }
   ]
-}"; var options = new ChatOptions
+}
+Return ONLY valid JSON matching this exact schema.";
+            var options = new ChatOptions
             {
                 // 1. Shrink context to save VRAM. 4096 is enough for a CV and stops 
                 // the model from "paging" to your slow system RAM.
