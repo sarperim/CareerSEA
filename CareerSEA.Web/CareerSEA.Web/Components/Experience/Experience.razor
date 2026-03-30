@@ -19,6 +19,7 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
+
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex justify-center" Style="min-height: 90vh; padding: 0.25rem 0.5rem;">
 
     <MudCard Elevation="20" Class="w-100" Style="max-width: 56rem;">
@@ -89,6 +90,7 @@
 
                 <MudGrid Spacing="3">
                     <MudItem xs="12">
+                        @* FIXED: Virtualize="false" to prevent parentElement crash *@
                         <MudSelectExtended T="string"
                                            @rendermode="InteractiveAuto"
                                            @bind-Value="model.Title"
@@ -101,7 +103,7 @@
                                            SearchBoxClearable="true"
                                            SearchFunc="@(new Func<string, string, bool>(SearchJobTitleFunc))"
                                            HelperText="Select a job title from the list"
-                                           Virtualize="true"
+                                           Virtualize="false"
                                            For="@(() => model.Title)"
                                            Required="true" />
                     </MudItem>
@@ -118,7 +120,7 @@
 
                     <MudItem xs="12">
                         <MudTextField Label="Skills"
-                                      Placeholder="Enter you skills here..."
+                                      Placeholder="Enter you skills here (comma separated)..."
                                       Variant="Variant.Outlined"
                                       @bind-Value="model.Skills"
                                       For="@(() => model.Skills)"
@@ -174,7 +176,6 @@
         }
     }
 
-    // NEW METHOD FOR PDF UPLOAD
     private async Task UploadAndAnalyzeCv(IBrowserFile file)
     {
         if (file == null) return;
@@ -182,7 +183,6 @@
         _isSaving = true;
         try
         {
-            // 1. Extract text from PDF
             string extractedText = "";
             using (var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
             using (var ms = new MemoryStream())
@@ -202,52 +202,37 @@
             if (string.IsNullOrWhiteSpace(extractedText)) throw new Exception("PDF is empty or unreadable.");
 
             var request = new { cvText = extractedText };
-
             var response = await apiClient.PostAsync<object, BaseResponse>("api/CvToInput/Parse", request);
 
-            // Reusing your exact JSON parsing logic from HandleValidSubmit
-            if (response != null && response.Status)
+            if (response != null && response.Status && response.Data is System.Text.Json.JsonElement element)
             {
-                if (response.Data is System.Text.Json.JsonElement element)
+                var rawJson = element.GetRawText();
+                var options = new JsonSerializerOptions
                 {
-                    var rawJson = element.GetRawText();
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-                    };
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                };
 
-                    var prediction = JsonSerializer.Deserialize<AnalysisData>(rawJson, options);
+                var prediction = JsonSerializer.Deserialize<AnalysisData>(rawJson, options);
 
-                    if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
-                    {
-                        predictionState.Result = prediction;
-                        NavManager.NavigateTo("/result");
-                        Snackbar.Add("Analysis Complete!", Severity.Success);
-                    }
-                    else
-                    {
-                        Snackbar.Add("Received data but could not read it.", Severity.Error);
-                    }
+                if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
+                {
+                    // FIX: Ensure UserSkills is not null even if coming from PDF
+                    if (prediction.UserSkills == null) prediction.UserSkills = new();
+
+                    predictionState.Result = prediction;
+                    NavManager.NavigateTo("/result");
+                    Snackbar.Add("Analysis Complete!", Severity.Success);
                 }
-            }
-            else
-            {
-                Snackbar.Add("Server error: " + (response?.Message ?? "Unknown"), Severity.Warning);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Error: {ex}");
             Snackbar.Add($"Error: {ex.Message}", Severity.Error);
         }
-        finally
-        {
-            _isSaving = false;
-        }
+        finally { _isSaving = false; }
     }
 
-    // YOUR EXACT EXISTING METHOD
     private async Task HandleValidSubmit()
     {
         _isSaving = true;
@@ -255,96 +240,60 @@
         {
             var response = await apiClient.PostAsync<ExperienceRequest, BaseResponse>("api/ExperiencePrediction/Predict", model);
 
-            if (response != null && response.Status)
+            if (response != null && response.Status && response.Data is System.Text.Json.JsonElement element)
             {
-                if (response.Data is System.Text.Json.JsonElement element)
+                var rawJson = element.GetRawText();
+                var options = new JsonSerializerOptions
                 {
-                    var rawJson = element.GetRawText();
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-                    };
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                };
 
-                    var prediction = JsonSerializer.Deserialize<AnalysisData>(rawJson, options);
+                var prediction = JsonSerializer.Deserialize<AnalysisData>(rawJson, options);
 
-                    if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
+                if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
+                {
+                    // --- SAVE USER SKILLS FROM FORM TO PREDICTION ---
+                    if (!string.IsNullOrWhiteSpace(model.Skills))
                     {
-                        predictionState.Result = prediction;
-                        NavManager.NavigateTo("/result");
-                        Snackbar.Add("Analysis Complete!", Severity.Success);
+                        prediction.UserSkills = model.Skills
+                            .Split(new[] { ',', '.', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim())
+                            .ToList();
                     }
-                    else
-                    {
-                        Snackbar.Add("Received data but could not read it.", Severity.Error);
-                    }
+
+                    predictionState.Result = prediction;
+                    NavManager.NavigateTo("/result");
+                    Snackbar.Add("Analysis Complete!", Severity.Success);
                 }
-                model = new();
             }
-            else
-            {
-                Snackbar.Add("Server error: " + (response?.Message ?? "Unknown"), Severity.Warning);
-            }
+            model = new();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Error: {ex}");
             Snackbar.Add($"Connection error: {ex.Message}", Severity.Error);
         }
-        finally
-        {
-            _isSaving = false;
-        }
+        finally { _isSaving = false; }
     }
 
-    // YOUR EXACT EXISTING METHOD
     private async Task LoadExperiencesAsync()
     {
         _isLoading = true;
         StateHasChanged();
-
         try
         {
             var result = await apiClient.GetAsync<BaseResponse>("api/ExperiencePrediction/GetForms");
-
-            if (result != null && result.Status && result.Data != null)
+            if (result != null && result.Status && result.Data is System.Text.Json.JsonElement element)
             {
-                if (result.Data is System.Text.Json.JsonElement element)
-                {
-                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("data", out var innerData))
+                    element = innerData;
 
-                    // Handle nested "data" wrapper if it exists
-                    if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("data", out var innerData))
-                    {
-                        element = innerData;
-                    }
-
-                    if (element.ValueKind == JsonValueKind.Array)
-                    {
-                        experienceModels = JsonSerializer.Deserialize<List<ExperienceRequest>>(element.GetRawText(), options)
-                                           ?? new List<ExperienceRequest>();
-                    }
-                    else if (element.ValueKind == JsonValueKind.Object)
-                    {
-                        var singleExp = JsonSerializer.Deserialize<ExperienceRequest>(element.GetRawText(), options);
-                        if (singleExp != null) experienceModels = new List<ExperienceRequest> { singleExp };
-                    }
-                }
-            }
-            else
-            {
-                experienceModels = new List<ExperienceRequest>();
+                if (element.ValueKind == JsonValueKind.Array)
+                    experienceModels = JsonSerializer.Deserialize<List<ExperienceRequest>>(element.GetRawText(), options) ?? new();
             }
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-            experienceModels = new List<ExperienceRequest>(); // Added this just to be safe
-        }
-        finally
-        {
-            _isLoading = false;
-            StateHasChanged();
-        }
+        catch { experienceModels = new(); }
+        finally { _isLoading = false; StateHasChanged(); }
     }
 }

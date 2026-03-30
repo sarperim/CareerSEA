@@ -75,7 +75,7 @@
                 <div class="mb-8">
                     <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Top 3 Alternatives</MudText>
 
-                    @if (_data.Recommendations.Any())
+                    @if (_data.Recommendations != null && _data.Recommendations.Any())
                     {
                         <MudStack Spacing="3">
                             @foreach (var job in _data.Recommendations.OrderByDescending(r => r.Score).Take(3))
@@ -124,11 +124,12 @@
                         {
                             <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@_errorMessage</MudAlert>
                         }
-                        else if (_jobListings.Any())
+                        else if (_jobListings != null && _jobListings.Any())
                         {
                             <MudPaper Elevation="0" Outlined="true" Class="rounded-lg overflow-hidden">
                                 <div style="max-height: 400px; overflow-y: auto;">
-                                    <MudList T="string" Dense="true" Clickable="true">
+                                    @* FIXED: Virtualize="false" to prevent JS crashes *@
+                                    <MudList T="string" Dense="true" Clickable="true" Virtualize="false">
                                         @foreach (var job in _jobListings)
                                         {
                                             <MudListItem Href="@job.Link" Target="_blank">
@@ -160,29 +161,7 @@
 
                 <MudDivider Class="my-8" />
 
-                <div class="mb-8">
-                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Recommended Next Steps</MudText>
-                    <MudList T="string" Dense="true" DisablePadding="true">
-                        <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Primary">
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                Review the specific requirements for <strong>@_data.BestJob</strong>.
-                            </MudText>
-                        </MudListItem>
-                        <MudListItem Icon="@Icons.Material.Filled.TrendingUp" IconColor="Color.Primary">
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                Update your resume to highlight skills relevant to the <strong>Top 3</strong> identified roles.
-                            </MudText>
-                        </MudListItem>
-                        <MudListItem Icon="@Icons.Material.Filled.School" IconColor="Color.Primary">
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                Consider upskilling in related fields to broaden your matching potential.
-                            </MudText>
-                        </MudListItem>
-                    </MudList>
-                </div>
-
-                <MudDivider Class="my-8" />
-
+                @* --- SKILL GAP SECTION --- *@
                 <div class="mb-8">
                     <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Skill Gap Analysis</MudText>
                     <MudPaper Outlined="true" Class="pa-6 rounded-lg">
@@ -203,14 +182,14 @@
                             <MudAlert Severity="Severity.Error">@_gapError</MudAlert>
                             <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="LoadSkillGapAsync" Class="mt-2">Try Again</MudButton>
                         }
-                        else
+                        else if (_skillGap != null)
                         {
                             <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Target Role: @_skillGap.OnetOccupationTitle</MudText>
 
                             <MudGrid>
                                 <MudItem xs="12" md="6">
                                     <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-success mb-2">Matched Skills</MudText>
-                                    @if (_skillGap.TechnologyGap.MatchedSkills.Any())
+                                    @if (_skillGap.TechnologyGap?.MatchedSkills != null && _skillGap.TechnologyGap.MatchedSkills.Any())
                                     {
                                         <MudStack Spacing="1">
                                             @foreach (var skill in _skillGap.TechnologyGap.MatchedSkills)
@@ -226,7 +205,7 @@
                                 </MudItem>
                                 <MudItem xs="12" md="6">
                                     <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-error mb-2">Missing Skills</MudText>
-                                    @if (_skillGap.TechnologyGap.MissingSkills.Any())
+                                    @if (_skillGap.TechnologyGap?.MissingSkills != null && _skillGap.TechnologyGap.MissingSkills.Any())
                                     {
                                         <MudStack Spacing="1">
                                             @foreach (var skill in _skillGap.TechnologyGap.MissingSkills.Take(10))
@@ -247,6 +226,7 @@
 
                 <MudDivider Class="my-8" />
 
+                @* --- COURSES SECTION --- *@
                 <div class="mb-8">
                     <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Recommended Courses</MudText>
                     <MudPaper Outlined="true" Class="pa-6 rounded-lg">
@@ -273,7 +253,8 @@
                                 @foreach (var group in _resources)
                                 {
                                     <MudExpansionPanel Text="@($"Learn: {group.Skill}")">
-                                        <MudList T="string" Dense="true" Clickable="true">
+                                        @* FIXED: Virtualize="false" here as well *@
+                                        <MudList T="string" Dense="true" Clickable="true" Virtualize="false">
                                             @foreach (var res in group.Resources)
                                             {
                                                 <MudListItem Href="@res.Url" Target="_blank">
@@ -306,18 +287,15 @@
 @code {
     private AnalysisData? _data;
 
-    // Existing Adzuna State
     private List<JobListingDto> _jobListings = new();
     private bool _isLoading;
     private string _currentSearchTerm = string.Empty;
     private string _errorMessage = string.Empty;
 
-    // NEW: Skill Gap State
     private SkillGapEnvelopeDTO? _skillGap;
     private bool _isLoadingGap;
     private string _gapError = string.Empty;
 
-    // NEW: Resource Recommender State
     private List<ResourceGroupDTO>? _resources;
     private bool _isLoadingResources;
     private string _resourceError = string.Empty;
@@ -325,10 +303,6 @@
     protected override void OnInitialized()
     {
         _data = predictionState.Result;
-        if (_data?.Recommendations == null && _data != null)
-        {
-            _data.Recommendations = new();
-        }
     }
 
     private async Task SearchJobsAsync(string? jobTitle)
@@ -338,7 +312,7 @@
         _currentSearchTerm = jobTitle;
         _isLoading = true;
         _errorMessage = "";
-        _jobListings.Clear();
+        _jobListings = new(); // Reset the list
         StateHasChanged();
 
         try
@@ -356,7 +330,6 @@
         }
     }
 
-    // NEW: Fetch Skill Gap Method
     private async Task LoadSkillGapAsync()
     {
         if (_data == null || string.IsNullOrWhiteSpace(_data.BestJob)) return;
@@ -367,13 +340,18 @@
 
         try
         {
-            // Sarp: Ensure you add this method to your ServerApiClient!
-            // Passing an empty list for userSkills since we let the backend calculate the targets based on the BestJob
-            _skillGap = await ApiClient.GetSkillGapAsync(new SkillGapRequest { BestJob = _data.BestJob, UserSkills = new List<string>() });
+            // Use the real UserSkills we saved on the previous page
+            var userSkills = _data.UserSkills ?? new List<string>();
+
+            _skillGap = await ApiClient.GetSkillGapAsync(new SkillGapRequest
+            {
+                BestJob = _data.BestJob,
+                UserSkills = userSkills
+            });
         }
         catch (Exception ex)
         {
-            _gapError = "Failed to load skill gap from O*NET. " + ex.Message;
+            _gapError = "Failed to load skill gap. " + ex.Message;
         }
         finally
         {
@@ -382,7 +360,6 @@
         }
     }
 
-    // NEW: Fetch Resources Method
     private async Task LoadResourcesAsync()
     {
         if (_data == null || string.IsNullOrWhiteSpace(_data.BestJob)) return;
@@ -393,21 +370,18 @@
 
         try
         {
-            // Fallback: If they haven't loaded the skill gap yet, we just pass an empty list
-            // and the backend automatically searches for the BestJob title instead!
             var missingSkills = _skillGap?.TechnologyGap?.MissingSkills ?? new List<string>();
 
-            // Sarp: Ensure you add this method to your ServerApiClient!
             _resources = await ApiClient.GetResourcesAsync(new ResourceRecommendationRequest
             {
                 BestJob = _data.BestJob,
                 MissingSkills = missingSkills,
-                UserSkills = new List<string>()
+                UserSkills = _data.UserSkills ?? new List<string>()
             });
         }
         catch (Exception ex)
         {
-            _resourceError = "Failed to load courses from Brave Search. " + ex.Message;
+            _resourceError = "Failed to load courses. " + ex.Message;
         }
         finally
         {

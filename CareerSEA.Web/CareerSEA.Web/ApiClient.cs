@@ -3,6 +3,7 @@ using CareerSEA.Contracts.Requests;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace CareerSEA.Web;
 
@@ -73,12 +74,13 @@ public class ServerApiClient
         // Return empty list if null to prevent UI crashes
         return await _client.GetFromJsonAsync<List<JobListingDto>>(url) ?? new List<JobListingDto>();
     }
+    private readonly JsonSerializerOptions _options = new() { PropertyNameCaseInsensitive = true };
     public async Task<SkillGapEnvelopeDTO> GetSkillGapAsync(SkillGapRequest request)
     {
         await AddAuthHeader();
         var response = await _client.PostAsJsonAsync("api/SkillGap/analyze", request);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<SkillGapEnvelopeDTO>();
+        return await response.Content.ReadFromJsonAsync<SkillGapEnvelopeDTO>(_options);
     }
 
     public async Task<List<ResourceGroupDTO>> GetResourcesAsync(ResourceRecommendationRequest request)
