@@ -1,6 +1,8 @@
-﻿using System.Net.Http.Headers;
+﻿using CareerSEA.Contracts.DTOs; // Ensure this namespace matches where your DTO is
+using CareerSEA.Contracts.Requests;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using CareerSEA.Contracts.DTOs; // Ensure this namespace matches where your DTO is
 
 namespace CareerSEA.Web;
 
@@ -70,5 +72,20 @@ public class ServerApiClient
 
         // Return empty list if null to prevent UI crashes
         return await _client.GetFromJsonAsync<List<JobListingDto>>(url) ?? new List<JobListingDto>();
+    }
+    public async Task<SkillGapEnvelopeDTO> GetSkillGapAsync(SkillGapRequest request)
+    {
+        await AddAuthHeader();
+        var response = await _client.PostAsJsonAsync("api/SkillGap/analyze", request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SkillGapEnvelopeDTO>();
+    }
+
+    public async Task<List<ResourceGroupDTO>> GetResourcesAsync(ResourceRecommendationRequest request)
+    {
+        await AddAuthHeader();
+        var response = await _client.PostAsJsonAsync("api/ResourceRecommendation/generate", request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<ResourceGroupDTO>>();
     }
 }
