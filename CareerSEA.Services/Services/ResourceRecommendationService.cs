@@ -1,5 +1,7 @@
-﻿using CareerSEA.Services.Interfaces;
+﻿using System.Text.RegularExpressions;//to normalize skills
+using CareerSEA.Services.Interfaces;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace CareerSEA.Services.Services
 {
@@ -211,38 +213,107 @@ namespace CareerSEA.Services.Services
                     {
                         foreach (var example in examples.EnumerateArray())
                         {
-                            if (example.TryGetProperty("name", out var name))
-                            {
-                                var skillName = name.GetString() ?? string.Empty;
+                            // To differentiate between title and name
+                            string skillName = string.Empty;
 
-                                // FIX 3: Prevent duplicate skills from being added
-                                if (!string.IsNullOrWhiteSpace(skillName) && !targetTechnologies.Contains(skillName))
-                                {
-                                    targetTechnologies.Add(skillName);
-                                }
+                            if (example.TryGetProperty("title", out var titleProp))
+                            {
+                                skillName = titleProp.GetString() ?? string.Empty;
+                            }
+                            else if (example.TryGetProperty("name", out var nameProp))
+                            {
+                                skillName = nameProp.GetString() ?? string.Empty;
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(skillName) && !targetTechnologies.Contains(skillName))
+                            {
+                                targetTechnologies.Add(skillName);
                             }
                         }
                     }
                 }
             }
 
-            // FIX 2: Find the O*NET target technologies that contain the user's skills
+
+            static string NormalizeSkill(string s)
+            {
+                s = (s ?? "").Trim().ToLowerInvariant();
+
+                // turn punctuation into spaces: vue.js -> vue js
+                s = Regex.Replace(s, @"[^\p{L}\p{N}]+", " ");
+
+                // collapse repeated spaces
+                s = Regex.Replace(s, @"\s+", " ").Trim();
+
+                return s;
+            }
+
+            static List<string> TokenizeSkill(string s)
+            {
+                return NormalizeSkill(s)
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .ToList();
+            }
+
+            static bool SkillMatch(string userSkill, string targetSkill)
+            {
+                var user = NormalizeSkill(userSkill);
+                var target = NormalizeSkill(targetSkill);
+
+                if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(target))
+                    return false;
+
+                // exact normalized full-string match
+                if (user == target)
+                    return true;
+
+                var userTokens = TokenizeSkill(userSkill);
+                var targetTokens = TokenizeSkill(targetSkill);
+
+                if (userTokens.Count == 0 || targetTokens.Count == 0)
+                    return false;
+
+                var userSet = new HashSet<string>(userTokens, StringComparer.OrdinalIgnoreCase);
+                var targetSet = new HashSet<string>(targetTokens, StringComparer.OrdinalIgnoreCase);
+
+                // single-token input:
+                // match only if that exact token exists in target
+                if (userSet.Count == 1)
+                {
+                    return targetSet.Contains(userSet.First());
+                }
+
+                // multi-token input:
+                // require all user tokens to exist in target
+                return userSet.All(t => targetSet.Contains(t));
+            }
+
+
+            var normalizedUserSkills = userSkills
+                .SelectMany(skill => (skill ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries))
+                .Select(skill => skill.Trim())
+                .Where(skill => !string.IsNullOrWhiteSpace(skill))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var matched = targetTechnologies
-                .Where(target => userSkills.Any(userSkill =>
-                    target.Contains(userSkill, StringComparison.OrdinalIgnoreCase) ||
-                    userSkill.Contains(target, StringComparison.OrdinalIgnoreCase)))
+                .Where(target => normalizedUserSkills.Any(userSkill => SkillMatch(userSkill, target)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             var missing = targetTechnologies
-                .Where(t => !matched.Contains(t))
-                .Take(10)
+                .Where(target => !normalizedUserSkills.Any(userSkill => SkillMatch(userSkill, target)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(5)
                 .ToList();
+
 
             return new Dictionary<string, object>
             {
                 ["onet_occupation_title"] = onetTitle,
                 ["onet_occupation_code"] = onetCode,
-                ["user_skills"] = userSkills,
+                ["user_skills"] = normalizedUserSkills,
                 ["technology_gap"] = new Dictionary<string, object>
                 {
                     ["target_skills"] = targetTechnologies,
