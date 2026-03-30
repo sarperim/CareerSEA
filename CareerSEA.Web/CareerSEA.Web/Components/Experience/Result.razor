@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 
 @using CareerSEA.Contracts.DTOs
+@using CareerSEA.Contracts.Requests
 @using MudBlazor
 @using CareerSEA.Web
 
@@ -159,7 +160,7 @@
 
                 <MudDivider Class="my-8" />
 
-                <div>
+                <div class="mb-8">
                     <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Recommended Next Steps</MudText>
                     <MudList T="string" Dense="true" DisablePadding="true">
                         <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Primary">
@@ -179,6 +180,123 @@
                         </MudListItem>
                     </MudList>
                 </div>
+
+                <MudDivider Class="my-8" />
+
+                <div class="mb-8">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Skill Gap Analysis</MudText>
+                    <MudPaper Outlined="true" Class="pa-6 rounded-lg">
+                        @if (_skillGap == null && !_isLoadingGap && string.IsNullOrEmpty(_gapError))
+                        {
+                            <MudText Typo="Typo.body1" Class="mb-4">
+                                Discover which technologies you need to learn to become a <strong>@(_data.BestJob)</strong>.
+                            </MudText>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadSkillGapAsync">Analyze My Skills</MudButton>
+                        }
+                        else if (_isLoadingGap)
+                        {
+                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="d-block mx-auto my-4" />
+                            <MudText Align="Align.Center" Class="mud-text-secondary">Analyzing O*NET database...</MudText>
+                        }
+                        else if (!string.IsNullOrEmpty(_gapError))
+                        {
+                            <MudAlert Severity="Severity.Error">@_gapError</MudAlert>
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="LoadSkillGapAsync" Class="mt-2">Try Again</MudButton>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Target Role: @_skillGap.OnetOccupationTitle</MudText>
+
+                            <MudGrid>
+                                <MudItem xs="12" md="6">
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-success mb-2">Matched Skills</MudText>
+                                    @if (_skillGap.TechnologyGap.MatchedSkills.Any())
+                                    {
+                                        <MudStack Spacing="1">
+                                            @foreach (var skill in _skillGap.TechnologyGap.MatchedSkills)
+                                            {
+                                                <MudText Typo="Typo.body2"><MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" Color="Color.Success" Class="mr-2" />@skill</MudText>
+                                            }
+                                        </MudStack>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">No direct matches found.</MudText>
+                                    }
+                                </MudItem>
+                                <MudItem xs="12" md="6">
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-error mb-2">Missing Skills</MudText>
+                                    @if (_skillGap.TechnologyGap.MissingSkills.Any())
+                                    {
+                                        <MudStack Spacing="1">
+                                            @foreach (var skill in _skillGap.TechnologyGap.MissingSkills.Take(10))
+                                            {
+                                                <MudText Typo="Typo.body2"><MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error" Class="mr-2" />@skill</MudText>
+                                            }
+                                        </MudStack>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">You have all the required skills!</MudText>
+                                    }
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </MudPaper>
+                </div>
+
+                <MudDivider Class="my-8" />
+
+                <div class="mb-8">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Recommended Courses</MudText>
+                    <MudPaper Outlined="true" Class="pa-6 rounded-lg">
+                        @if (_resources == null && !_isLoadingResources && string.IsNullOrEmpty(_resourceError))
+                        {
+                            <MudText Typo="Typo.body1" Class="mb-4">
+                                Find top-rated courses on YouTube, Udemy, and Coursera to fill your skill gaps.
+                            </MudText>
+                            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="LoadResourcesAsync">Find Courses</MudButton>
+                        }
+                        else if (_isLoadingResources)
+                        {
+                            <MudProgressCircular Color="Color.Secondary" Indeterminate="true" Class="d-block mx-auto my-4" />
+                            <MudText Align="Align.Center" Class="mud-text-secondary">Searching the web for the best courses...</MudText>
+                        }
+                        else if (!string.IsNullOrEmpty(_resourceError))
+                        {
+                            <MudAlert Severity="Severity.Error">@_resourceError</MudAlert>
+                            <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="LoadResourcesAsync" Class="mt-2">Try Again</MudButton>
+                        }
+                        else if (_resources != null && _resources.Any())
+                        {
+                            <MudExpansionPanels MultiExpansion="true">
+                                @foreach (var group in _resources)
+                                {
+                                    <MudExpansionPanel Text="@($"Learn: {group.Skill}")">
+                                        <MudList T="string" Dense="true" Clickable="true">
+                                            @foreach (var res in group.Resources)
+                                            {
+                                                <MudListItem Href="@res.Url" Target="_blank">
+                                                    <div class="d-flex align-center">
+                                                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Class="mr-3 mud-text-secondary" />
+                                                        <div>
+                                                            <MudText Typo="Typo.body2" Class="font-weight-bold">@res.Title</MudText>
+                                                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@res.Provider</MudText>
+                                                        </div>
+                                                    </div>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    </MudExpansionPanel>
+                                }
+                            </MudExpansionPanels>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info">No specific courses found for these skills.</MudAlert>
+                        }
+                    </MudPaper>
+                </div>
             }
 
         </MudCardContent>
@@ -187,10 +305,22 @@
 
 @code {
     private AnalysisData? _data;
+
+    // Existing Adzuna State
     private List<JobListingDto> _jobListings = new();
     private bool _isLoading;
     private string _currentSearchTerm = string.Empty;
     private string _errorMessage = string.Empty;
+
+    // NEW: Skill Gap State
+    private SkillGapEnvelopeDTO? _skillGap;
+    private bool _isLoadingGap;
+    private string _gapError = string.Empty;
+
+    // NEW: Resource Recommender State
+    private List<ResourceGroupDTO>? _resources;
+    private bool _isLoadingResources;
+    private string _resourceError = string.Empty;
 
     protected override void OnInitialized()
     {
@@ -222,6 +352,66 @@
         finally
         {
             _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // NEW: Fetch Skill Gap Method
+    private async Task LoadSkillGapAsync()
+    {
+        if (_data == null || string.IsNullOrWhiteSpace(_data.BestJob)) return;
+
+        _isLoadingGap = true;
+        _gapError = "";
+        StateHasChanged();
+
+        try
+        {
+            // Sarp: Ensure you add this method to your ServerApiClient!
+            // Passing an empty list for userSkills since we let the backend calculate the targets based on the BestJob
+            _skillGap = await ApiClient.GetSkillGapAsync(new SkillGapRequest { BestJob = _data.BestJob, UserSkills = new List<string>() });
+        }
+        catch (Exception ex)
+        {
+            _gapError = "Failed to load skill gap from O*NET. " + ex.Message;
+        }
+        finally
+        {
+            _isLoadingGap = false;
+            StateHasChanged();
+        }
+    }
+
+    // NEW: Fetch Resources Method
+    private async Task LoadResourcesAsync()
+    {
+        if (_data == null || string.IsNullOrWhiteSpace(_data.BestJob)) return;
+
+        _isLoadingResources = true;
+        _resourceError = "";
+        StateHasChanged();
+
+        try
+        {
+            // Fallback: If they haven't loaded the skill gap yet, we just pass an empty list
+            // and the backend automatically searches for the BestJob title instead!
+            var missingSkills = _skillGap?.TechnologyGap?.MissingSkills ?? new List<string>();
+
+            // Sarp: Ensure you add this method to your ServerApiClient!
+            _resources = await ApiClient.GetResourcesAsync(new ResourceRecommendationRequest
+            {
+                BestJob = _data.BestJob,
+                MissingSkills = missingSkills,
+                UserSkills = new List<string>()
+            });
+        }
+        catch (Exception ex)
+        {
+            _resourceError = "Failed to load courses from Brave Search. " + ex.Message;
+        }
+        finally
+        {
+            _isLoadingResources = false;
             StateHasChanged();
         }
     }

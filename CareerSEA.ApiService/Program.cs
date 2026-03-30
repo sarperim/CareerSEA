@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using Polly;
 using System;
 using System.Text;
+using static CareerSEA.Services.Interfaces.IResourceRecommendationService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,10 +19,37 @@ builder.AddNpgsqlDbContext<CareerSEADbContext>("webAppDb");
 builder.Services.AddServiceDiscovery();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IExperiencePredictionService, ExperiencePredictionService>();
 builder.Services.AddScoped<IJobPostService,JobPostService>();
 builder.Services.AddScoped<ILlamaInputService,LlamaInputService>();
 
+builder.Services.AddScoped<ISkillGapService, SkillGapService>();
+
+
+builder.Services.AddHttpClient<IOnetService, OnetService>(client =>
+{
+    client.BaseAddress = new Uri("https://api-v2.onetcenter.org/");
+
+    var apiKey = builder.Configuration["Onet:ApiKey"];
+    if (!string.IsNullOrEmpty(apiKey))
+    {
+        client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+    }
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+})
+.AddStandardResilienceHandler(); // Leverages Polly for automatic retries
+
+builder.Services.AddHttpClient<IResourceRecommendationService, ResourceRecommendationService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.search.brave.com/");
+
+    var apiKey = builder.Configuration["Brave:ApiKey"];
+    if (!string.IsNullOrEmpty(apiKey))
+    {
+        client.DefaultRequestHeaders.Add("X-Subscription-Token", apiKey);
+    }
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+})
+.AddStandardResilienceHandler();
 
 builder.AddOllamaApiClient("ollamaModel").AddChatClient();
 builder.Services.AddHttpClient("ollamaModel_httpClient")
