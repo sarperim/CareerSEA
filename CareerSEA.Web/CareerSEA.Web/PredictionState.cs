@@ -16,6 +16,7 @@ public class AnalysisData
 
     [JsonPropertyName("match_score")]
     public float MatchScore { get; set; }
+    public List<string> UserSkills { get; set; } = new();
 
     [JsonPropertyName("recommendations")]
     public List<JobRecommendation> Recommendations { get; set; } = new();
