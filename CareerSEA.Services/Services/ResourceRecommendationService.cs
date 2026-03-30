@@ -155,9 +155,23 @@ namespace CareerSEA.Services.Services
         public async Task<List<JsonElement>> GetOccupationTechnologyAsync(string onetCode, int start = 1, int end = 10)
         {
             using var doc = await GetAsync($"/online/occupations/{onetCode}/details/technology_skills", new() { ["start"] = start.ToString(), ["end"] = end.ToString() });
-            if (!doc.RootElement.TryGetProperty("category", out var categories) || categories.ValueKind != JsonValueKind.Array)
-                return new();
-            return categories.EnumerateArray().Select(x => x.Clone()).ToList();
+
+            // FIX: O*NET wraps the categories inside a "technology_skills" object
+            if (doc.RootElement.TryGetProperty("technology_skills", out var techSkills))
+            {
+                if (techSkills.TryGetProperty("category", out var categories) && categories.ValueKind == JsonValueKind.Array)
+                {
+                    return categories.EnumerateArray().Select(x => x.Clone()).ToList();
+                }
+            }
+
+            // Fallback: If O*NET changes their structure or returns it directly
+            if (doc.RootElement.TryGetProperty("category", out var directCategories) && directCategories.ValueKind == JsonValueKind.Array)
+            {
+                return directCategories.EnumerateArray().Select(x => x.Clone()).ToList();
+            }
+
+            return new();
         }
 
         public string ExtractOnetCode(JsonElement item) =>
