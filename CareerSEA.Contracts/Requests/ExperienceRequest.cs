@@ -10,10 +10,10 @@ namespace CareerSEA.Contracts.Requests
     public class ExperienceRequest
     {
         [Required]
-        public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
         [Required]
-        public string Description { get; set; }
+        public string Description { get; set; } = string.Empty;
         [Required]
-        public string Skills { get; set; }
+        public string Skills { get; set; } = string.Empty;
     }
 }

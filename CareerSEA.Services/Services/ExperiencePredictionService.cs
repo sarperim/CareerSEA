@@ -48,6 +48,11 @@ namespace CareerSEA.Services.Services
 
         public async Task<BaseResponse> SaveForm(ExperienceRequest response,Guid userId)
         {
+            return await SaveForms(new List<ExperienceRequest> { response }, userId);
+        }
+
+        public async Task<BaseResponse> SaveForms(List<ExperienceRequest> responses, Guid userId)
+        {
             var existingUser = await _dbContext.Users.FirstOrDefaultAsync(a => a.Id == userId);
             if(existingUser == null)
             {
@@ -57,40 +62,56 @@ namespace CareerSEA.Services.Services
                     Message = "Null"
                 };
             }
-            var experience = new Experience
+
+            if (responses == null || !responses.Any())
+            {
+                return new BaseResponse
+                {
+                    Status = false,
+                    Message = "At least one complete experience is required."
+                };
+            }
+
+            if (responses.Any(response => response == null
+                || string.IsNullOrWhiteSpace(response.Title)
+                || string.IsNullOrWhiteSpace(response.Description)
+                || string.IsNullOrWhiteSpace(response.Skills)))
+            {
+                return new BaseResponse
+                {
+                    Status = false,
+                    Message = "All experience entries must include a title, description, and skills."
+                };
+            }
+
+            var experiences = responses.Select(response => new Experience
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                Title = response.Title,
-                Description = response.Description,
-                Skills = response.Skills
-            };
-            await _dbContext.Experiences.AddAsync(experience);
+                Title = response.Title.Trim(),
+                Description = response.Description.Trim(),
+                Skills = response.Skills.Trim()
+            }).ToList();
+            await _dbContext.Experiences.AddRangeAsync(experiences);
 
-            var saved = new ExperienceResponse
+            var aiRequest = new AIRequest
             {
-                Title = response.Title,
-                Description = response.Description,
-                Skills = response.Skills
+                jobs = experiences.Select(experience => new AIJobDto
+                {
+                    title = experience.Title,
+                    description = experience.Description,
+                    skills = experience.Skills
+                }).ToList()
             };
 
-            AIResponse aiResult = null;
+            return await RunPredictionAsync(aiRequest, userId);
+        }
+
+        private async Task<BaseResponse> RunPredictionAsync(AIRequest aiRequest, Guid userId)
+        {
+            AIResponse? aiResult = null;
             try
             {
-                // Prepare the payload matching the Python "UserInput" structure
-                var aiRequest = new AIRequest
-                {
-                    jobs = new List<AIJobDto>
-                    {
-                        new AIJobDto
-                        {
-                            title = response.Title,
-                            description = response.Description,
-                            skills = response.Skills
-                        }
-                    }
-                };
-
                 // Serialize to JSON
                 var jsonContent = new StringContent(
                     JsonSerializer.Serialize(aiRequest),
@@ -102,49 +123,65 @@ namespace CareerSEA.Services.Services
                 // Ensure this URL matches where your Python script is running
                 var httpResponse = await _httpClient.PostAsync("/predict", jsonContent);
 
-                if (httpResponse.IsSuccessStatusCode)
+                if (!httpResponse.IsSuccessStatusCode)
                 {
-                    var responseString = await httpResponse.Content.ReadAsStringAsync();
-
-                    // 1. Deserialize into your DTO (AIResponse)
-                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    aiResult = JsonSerializer.Deserialize<AIResponse>(responseString, options);
-
-                    if (aiResult != null)
+                    return new BaseResponse
                     {
-                        // 2. MAP the data: Copy from AIResponse -> PredictionResult
-                        var dbResult = new PredictionResult
-                        {
-                            // Left side = Database Class | Right side = AI Response Class
-                            BestJob = aiResult.best_job,
-                            MatchScore = aiResult.match_score, // float converts to double automatically
-
-                            // Map the list of recommendations
-                            Recommendations = aiResult.recommendations?.Select(r => new JobRecommendation
-                            {
-                                Label = r.label,
-                                Score = r.score
-                            }).ToList() ?? new List<JobRecommendation>()
-                        };
-
-                        // 3. Create the Database Entity
-                        var predictionEntry = new Prediction
-                        {
-                            Id = Guid.NewGuid(),
-                            UserId = userId,
-                            Result = dbResult // Now we are assigning the correct type!
-                        };
-
-                        // 4. Save to DB
-                        await _dbContext.Predictions.AddAsync(predictionEntry);
-                        await _dbContext.SaveChangesAsync();
-                    }
+                        Status = false,
+                        Message = $"Python API failed with status code: {httpResponse.StatusCode}"
+                    };
                 }
+
+                var responseString = await httpResponse.Content.ReadAsStringAsync();
+
+                // 1. Deserialize into your DTO (AIResponse)
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                aiResult = JsonSerializer.Deserialize<AIResponse>(responseString, options);
+
+                if (aiResult == null)
+                {
+                    return new BaseResponse
+                    {
+                        Status = false,
+                        Message = "Prediction service returned an empty response."
+                    };
+                }
+
+                // 2. MAP the data: Copy from AIResponse -> PredictionResult
+                var dbResult = new PredictionResult
+                {
+                    // Left side = Database Class | Right side = AI Response Class
+                    BestJob = aiResult.best_job,
+                    MatchScore = aiResult.match_score, // float converts to double automatically
+
+                    // Map the list of recommendations
+                    Recommendations = aiResult.recommendations?.Select(r => new JobRecommendation
+                    {
+                        Label = r.label,
+                        Score = r.score
+                    }).ToList() ?? new List<JobRecommendation>()
+                };
+
+                // 3. Create the Database Entity
+                var predictionEntry = new Prediction
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Result = dbResult // Now we are assigning the correct type!
+                };
+
+                // 4. Save to DB
+                await _dbContext.Predictions.AddAsync(predictionEntry);
+                await _dbContext.SaveChangesAsync();
             }
             catch (Exception ex)
             {
-                // Log the error, but maybe don't fail the whole request if the DB save succeeded
                 Console.WriteLine($"AI Service Error: {ex.Message}");
+                return new BaseResponse
+                {
+                    Status = false,
+                    Message = "An error occurred while communicating with the prediction service."
+                };
             }
             return new BaseResponse 
             {
@@ -177,78 +214,7 @@ namespace CareerSEA.Services.Services
                 };
             }
 
-            AIResponse aiResult = null;
-            try
-            {
-                // 1. Serialize the Llama output directly (it's already in the correct AIRequest format)
-                var jsonContent = new StringContent(
-                    JsonSerializer.Serialize(llamaOutput),
-                    Encoding.UTF8,
-                    "application/json"
-                );
-
-                // 2. Send POST request to Python API
-                var httpResponse = await _httpClient.PostAsync("/predict", jsonContent);
-
-                if (httpResponse.IsSuccessStatusCode)
-                {
-                    var responseString = await httpResponse.Content.ReadAsStringAsync();
-
-                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    aiResult = JsonSerializer.Deserialize<AIResponse>(responseString, options);
-
-                    if (aiResult != null)
-                    {
-                        // 3. Map the data: Copy from AIResponse -> PredictionResult
-                        var dbResult = new PredictionResult
-                        {
-                            BestJob = aiResult.best_job,
-                            MatchScore = aiResult.match_score,
-                            Recommendations = aiResult.recommendations?.Select(r => new JobRecommendation
-                            {
-                                Label = r.label,
-                                Score = r.score
-                            }).ToList() ?? new List<JobRecommendation>()
-                        };
-
-                        // 4. Create the Database Entity
-                        var predictionEntry = new Prediction
-                        {
-                            Id = Guid.NewGuid(),
-                            UserId = userId,
-                            Result = dbResult
-                        };
-
-                        // 5. Save to DB
-                        await _dbContext.Predictions.AddAsync(predictionEntry);
-                        await _dbContext.SaveChangesAsync();
-                    }
-                }
-                else
-                {
-                    return new BaseResponse
-                    {
-                        Status = false,
-                        Message = $"Python API failed with status code: {httpResponse.StatusCode}"
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"AI Service Error: {ex.Message}");
-                return new BaseResponse
-                {
-                    Status = false,
-                    Message = "An error occurred while communicating with the prediction service."
-                };
-            }
-
-            return new BaseResponse
-            {
-                Status = true,
-                Message = "Success",
-                Data = aiResult
-            };
+            return await RunPredictionAsync(llamaOutput, userId);
         }
     }
 }
