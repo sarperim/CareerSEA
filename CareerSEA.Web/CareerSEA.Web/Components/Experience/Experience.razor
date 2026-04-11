@@ -83,69 +83,95 @@
 
             <MudDivider Class="my-8" />
 
-            <MudText Typo="Typo.h6" GutterBottom="true">Add New Experience</MudText>
+            <MudText Typo="Typo.h6" GutterBottom="true">Add Experiences</MudText>
 
-            <EditForm Model="@model" OnValidSubmit="HandleValidSubmit" FormName="ExperienceForm">
-                <DataAnnotationsValidator />
+            <EditForm Model="@inlineExperienceModels" OnSubmit="HandlePredictionSubmit" FormName="ExperienceForm">
+                <MudStack Spacing="4">
+                    @for (var i = 0; i < inlineExperienceModels.Count; i++)
+                    {
+                        var index = i;
 
-                <MudGrid Spacing="3">
-                    <MudItem xs="12">
-                        @* FIXED: Virtualize="false" to prevent parentElement crash *@
-                        <MudSelectExtended T="string"
-                                           @rendermode="InteractiveAuto"
-                                           @bind-Value="model.Title"
-                                           Label="Job Title"
-                                           Variant="Variant.Outlined"
-                                           Dense="true"
-                                           ItemCollection="_jobTitles"
-                                           SearchBox="true"
-                                           SearchBoxAutoFocus="true"
-                                           SearchBoxClearable="true"
-                                           SearchFunc="@(new Func<string, string, bool>(SearchJobTitleFunc))"
-                                           HelperText="Select a job title from the list"
-                                           Virtualize="false"
-                                           For="@(() => model.Title)"
-                                           Required="true" />
-                    </MudItem>
+                        <MudPaper @key="inlineExperienceModels[index]" Class="job-entry-paper pa-4" Elevation="2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudText Typo="Typo.h6" Color="Color.Primary">Experience @(index + 1)</MudText>
+                                @if (inlineExperienceModels.Count > 1)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Color="Color.Error"
+                                                   Variant="Variant.Text"
+                                                   Size="Size.Small"
+                                                   Disabled="@_isSaving"
+                                                   OnClick="@(() => RemoveExperienceForm(index))"
+                                                   aria-label="@($"Remove experience {index + 1}")" />
+                                }
+                            </MudStack>
 
-                    <MudItem xs="12">
-                        <MudTextField Label="Job Description"
-                                      Placeholder="Enter the full job description here..."
-                                      Variant="Variant.Outlined"
-                                      Lines="6"
-                                      @bind-Value="model.Description"
-                                      For="@(() => model.Description)"
-                                      Required="true" />
-                    </MudItem>
+                            <MudGrid Spacing="3">
+                                <MudItem xs="12">
+                                    @* FIXED: Virtualize="false" to prevent parentElement crash *@
+                                    <MudSelectExtended T="string"
+                                                       @rendermode="InteractiveAuto"
+                                                       @bind-Value="inlineExperienceModels[index].Title"
+                                                       Label="Job Title"
+                                                       Variant="Variant.Outlined"
+                                                       Dense="true"
+                                                       ItemCollection="_jobTitles"
+                                                       SearchBox="true"
+                                                       SearchBoxAutoFocus="true"
+                                                       SearchBoxClearable="true"
+                                                       SearchFunc="@(new Func<string, string, bool>(SearchJobTitleFunc))"
+                                                       HelperText="Select a job title from the list"
+                                                       Virtualize="false"
+                                                       Required="true" />
+                                </MudItem>
 
-                    <MudItem xs="12">
-                        <MudTextField Label="Skills"
-                                      Placeholder="Enter you skills here (comma separated)..."
-                                      Variant="Variant.Outlined"
-                                      @bind-Value="model.Skills"
-                                      For="@(() => model.Skills)"
-                                      Required="true" />
-                    </MudItem>
+                                <MudItem xs="12">
+                                    <MudTextField Label="Job Description"
+                                                  Placeholder="Enter the full job description here..."
+                                                  Variant="Variant.Outlined"
+                                                  Lines="6"
+                                                  @bind-Value="inlineExperienceModels[index].Description"
+                                                  Required="true" />
+                                </MudItem>
 
-                    <MudItem xs="12">
-                        <MudButton ButtonType="ButtonType.Submit"
-                                   Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   FullWidth="true"
-                                   Disabled="@_isSaving"
-                                   Size="Size.Large">
-                            @if (_isSaving)
-                            {
-                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                                <MudText Class="ms-2">Saving...</MudText>
-                            }
-                            else
-                            {
-                                <MudText>Create Prediction</MudText>
-                            }
-                        </MudButton>
-                    </MudItem>
-                </MudGrid>
+                                <MudItem xs="12">
+                                    <MudTextField Label="Skills"
+                                                  Placeholder="Enter your skills here (comma separated)..."
+                                                  Variant="Variant.Outlined"
+                                                  @bind-Value="inlineExperienceModels[index].Skills"
+                                                  Required="true" />
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+
+                    <MudButton ButtonType="ButtonType.Button"
+                               Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Disabled="@_isSaving"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddExperienceForm">
+                        Add New Experience
+                    </MudButton>
+
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Disabled="@_isSaving"
+                               Size="Size.Large">
+                        @if (_isSaving)
+                        {
+                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                            <MudText Class="ms-2">Saving...</MudText>
+                        }
+                        else
+                        {
+                            <MudText>CREATE PREDICTION</MudText>
+                        }
+                    </MudButton>
+                </MudStack>
             </EditForm>
         </MudCardContent>
     </MudCard>
@@ -153,9 +179,7 @@
 
 @code {
     public List<ExperienceRequest> experienceModels { get; set; } = new();
-
-    [SupplyParameterFromForm(FormName = "ExperienceForm")]
-    public ExperienceRequest model { get; set; } = new();
+    public List<ExperienceRequest> inlineExperienceModels { get; set; } = new() { new() };
 
     private bool _isLoading = true;
     private bool _isSaving = false;
@@ -233,12 +257,47 @@
         finally { _isSaving = false; }
     }
 
-    private async Task HandleValidSubmit()
+    private void AddExperienceForm()
     {
+        inlineExperienceModels.Add(new ExperienceRequest());
+    }
+
+    private void RemoveExperienceForm(int index)
+    {
+        if (inlineExperienceModels.Count <= 1 || index < 0 || index >= inlineExperienceModels.Count)
+        {
+            return;
+        }
+
+        inlineExperienceModels.RemoveAt(index);
+    }
+
+    private async Task HandlePredictionSubmit()
+    {
+        var experiencesToSubmit = inlineExperienceModels
+            .Select(experience => new ExperienceRequest
+            {
+                Title = experience.Title.Trim(),
+                Description = experience.Description.Trim(),
+                Skills = experience.Skills.Trim()
+            })
+            .ToList();
+
+        var invalidIndex = experiencesToSubmit.FindIndex(experience =>
+            string.IsNullOrWhiteSpace(experience.Title)
+            || string.IsNullOrWhiteSpace(experience.Description)
+            || string.IsNullOrWhiteSpace(experience.Skills));
+
+        if (invalidIndex >= 0)
+        {
+            Snackbar.Add($"Complete all fields for experience {invalidIndex + 1}.", Severity.Warning);
+            return;
+        }
+
         _isSaving = true;
         try
         {
-            var response = await apiClient.PostAsync<ExperienceRequest, BaseResponse>("api/ExperiencePrediction/Predict", model);
+            var response = await apiClient.PostAsync<List<ExperienceRequest>, BaseResponse>("api/ExperiencePrediction/PredictMany", experiencesToSubmit);
 
             if (response != null && response.Status && response.Data is System.Text.Json.JsonElement element)
             {
@@ -254,26 +313,36 @@
                 if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
                 {
                     // --- SAVE USER SKILLS FROM FORM TO PREDICTION ---
-                    if (!string.IsNullOrWhiteSpace(model.Skills))
+                    var userSkills = SplitUserSkills(experiencesToSubmit);
+                    if (userSkills.Any())
                     {
-                        prediction.UserSkills = model.Skills
-                            .Split(new[] { ',', '.', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(s => s.Trim())
-                            .ToList();
+                        prediction.UserSkills = userSkills;
                     }
 
                     predictionState.Result = prediction;
                     NavManager.NavigateTo("/result");
                     Snackbar.Add("Analysis Complete!", Severity.Success);
+                    return;
                 }
             }
-            model = new();
+
+            Snackbar.Add(response?.Message ?? "Prediction response was incomplete.", Severity.Warning);
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Connection error: {ex.Message}", Severity.Error);
         }
         finally { _isSaving = false; }
+    }
+
+    private static List<string> SplitUserSkills(IEnumerable<ExperienceRequest> experiences)
+    {
+        return experiences
+            .SelectMany(experience => experience.Skills.Split(new[] { ',', '.', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            .Select(skill => skill.Trim())
+            .Where(skill => !string.IsNullOrWhiteSpace(skill))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async Task LoadExperiencesAsync()

@@ -29,6 +29,20 @@ namespace CareerSEA.ApiService.Controllers
 
             return Ok(response);
         }
+
+        [Authorize]
+        [HttpPost("PredictMany")]
+        public async Task<ActionResult<BaseResponse>> SaveForms(List<ExperienceRequest> forms)
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return Unauthorized(); ;
+
+            var response = await _eps.SaveForms(forms, Guid.Parse(userIdClaim));
+
+            return Ok(response);
+        }
+
         [Authorize]
         [HttpGet("GetForms")]
         public async Task<ActionResult<BaseResponse>> GetForms()
@@ -41,4 +55,3 @@ namespace CareerSEA.ApiService.Controllers
         }
     }
 }
-
