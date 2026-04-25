@@ -1,27 +1,38 @@
+using System.IO;
+
 var builder = DistributedApplication.CreateBuilder(args);
+
+var pythonModelPath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "../CareerSEA.Py/model"));
+var escoTitlesPath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "../CareerSEA.Web/CareerSEA.Web/JobTitles.cs"));
 
 var postgres = builder.AddPostgres("postgres")
     .WithImage("pgvector/pgvector", "pg17");
-    //.WithPgAdmin(admin => admin.WithImageTag("8.11"));
-// .WithDataVolume();
-/*
-var pythonApi = builder.AddPythonApp("aiservice", "../CareerSEA.Py", "main.py")
-                       .WithHttpEndpoint(port: 8000, targetPort: 8001) 
-                       .WithExternalHttpEndpoints();
-*/
+
+var ollama = builder.AddOllama("ollama")
+    .WithDataVolume()
+    .WithEnvironment("OLLAMA_FLASH_ATTENTION", "1");
+
+var qwen = ollama.AddModel("ollamaModel", "qwen2.5:3b");
 
 var pythonApi = builder.AddDockerfile("aiservice", "../CareerSEA.Py")
     .WithHttpEndpoint(port: 8001, targetPort: 8001, name: "api")
     .WithExternalHttpEndpoints()
-    .WithEnvironment("CUDA_VISIBLE_DEVICES", "-1"); // FORCE teammate's model to CPU only
+    .WithEnvironment("CUDA_VISIBLE_DEVICES", "-1") // FORCE teammate's model to CPU only
+    .WithEnvironment("MODEL_DIR", "/app/model")
+    .WithEnvironment("ESCO_TITLES_PATH", "/app/data/JobTitles.cs")
+    .WithEnvironment("OLLAMA_HOST", ollama.GetEndpoint("http"))
+    .WithBindMount(pythonModelPath, "/app/model", isReadOnly: true)
+    .WithBindMount(escoTitlesPath, "/app/data/JobTitles.cs", isReadOnly: true)
+    .WaitFor(qwen);
 
-var apiService = builder.AddProject<Projects.CareerSEA_ApiService>("apiservice")
+var apiService = builder.AddProject<Projects.CareerSEA_ApiService>("apiservice", launchProfileName: "http")
     .WithHttpHealthCheck("/health")
     .WithReplicas(1)
     .WithReference(pythonApi.GetEndpoint("api"))
-    .WaitFor(postgres);
+    .WaitFor(postgres)
+    .WaitFor(pythonApi);
 
-var webfrontend = builder.AddProject<Projects.CareerSEA_Web>("webfrontend")
+var webfrontend = builder.AddProject<Projects.CareerSEA_Web>("webfrontend", launchProfileName: "http")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
     .WithReference(apiService)
@@ -40,17 +51,8 @@ builder.AddContainer("pgadmin", "dpage/pgadmin4")
     .WithReference(postgres);
 */
 
-var ollama = builder.AddOllama("ollama")
-    .WithDataVolume()
-    .WithEnvironment("OLLAMA_FLASH_ATTENTION", "1")
-    .WithGPUSupport();
-
-var llama32 = ollama.AddModel("ollamaModel","llama3.2:3b");
-
-apiService.WithReference(postgresdb)
-             .WithReference(llama32);
+apiService.WithReference(postgresdb);
 
 webfrontend.WithReference(postgresdb);
 
 builder.Build().Run();
-

@@ -26,7 +26,7 @@ namespace CareerSEA.ApiService.Controllers
             var user = await _authService.RegisterAsync(request);
             if (user.Status == false)
             {
-                return BadRequest("User Exist.");
+                return BadRequest(user);
             }
             return Ok(user);
         }
@@ -37,8 +37,18 @@ namespace CareerSEA.ApiService.Controllers
             var tokens = await _authService.LoginAsync(request);
             if (tokens == null)
             {
-                return BadRequest("Invalid Username or Password");
+                return StatusCode(StatusCodes.Status500InternalServerError, new BaseResponse
+                {
+                    Status = false,
+                    Message = "Unable to process login."
+                });
             }
+
+            if (!tokens.Status)
+            {
+                return BadRequest(tokens);
+            }
+
             return Ok(tokens);
         }
 

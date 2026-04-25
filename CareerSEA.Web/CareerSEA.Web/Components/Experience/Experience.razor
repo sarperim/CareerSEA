@@ -7,8 +7,6 @@
 @using MudBlazor
 @using System.Text.Json
 @using CareerSEA.Web
-@using iText.Kernel.Pdf
-@using iText.Kernel.Pdf.Canvas.Parser
 @using System.IO
 
 @inject ServerApiClient apiClient
@@ -36,7 +34,7 @@
 
             @* --- UPLOAD CV SECTION --- *@
             <MudText Typo="Typo.h6" GutterBottom="true">Quick Upload</MudText>
-            <MudPaper Variant="Variant.Outlined" Class="pa-4 mb-8 d-flex flex-column align-center" Style="border-style: dashed; background-color: var(--mud-palette-background-grey);">
+            <MudPaper Outlined="true" Class="pa-4 mb-8 d-flex flex-column align-center" Style="border-style: dashed; background-color: var(--mud-palette-background-grey);">
                 <MudFileUpload T="IBrowserFile" FilesChanged="UploadAndAnalyzeCv" Accept=".pdf">
                     <ActivatorContent>
                         <MudButton Variant="Variant.Filled"
@@ -47,7 +45,7 @@
                         </MudButton>
                     </ActivatorContent>
                 </MudFileUpload>
-                <MudText Typo="Typo.caption" Class="mt-2">Llama will automatically extract data from your PDF</MudText>
+                <MudText Typo="Typo.caption" Class="mt-2">Qwen will automatically extract data from your PDF</MudText>
             </MudPaper>
 
             <MudText Typo="Typo.h6" GutterBottom="true">Saved Experiences</MudText>
@@ -84,6 +82,12 @@
             <MudDivider Class="my-8" />
 
             <MudText Typo="Typo.h6" GutterBottom="true">Add Experiences</MudText>
+            @if (_hasExtractedCvForReview)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                    Review the extracted CV experiences before creating a prediction.
+                </MudAlert>
+            }
 
             <EditForm Model="@inlineExperienceModels" OnSubmit="HandlePredictionSubmit" FormName="ExperienceForm">
                 <MudStack Spacing="4">
@@ -183,6 +187,7 @@
 
     private bool _isLoading = true;
     private bool _isSaving = false;
+    private bool _hasExtractedCvForReview = false;
 
     private string[] _jobTitles = JobTitles.Jobs;
 
@@ -205,50 +210,79 @@
         if (file == null) return;
 
         _isSaving = true;
+        _hasExtractedCvForReview = false;
         try
         {
-            string extractedText = "";
-            using (var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
-            using (var ms = new MemoryStream())
+            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+            var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/pdf" : file.ContentType;
+            var response = await apiClient.PostFileAsync<BaseResponse>("api/CvToInput/Parse", stream, file.Name, contentType);
+
+            if (response == null)
             {
-                await stream.CopyToAsync(ms);
-                ms.Position = 0;
-                using (var pdfReader = new PdfReader(ms))
-                using (var pdfDoc = new PdfDocument(pdfReader))
-                {
-                    for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
-                    {
-                        extractedText += PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i)) + " ";
-                    }
-                }
+                Snackbar.Add("CV analysis failed. The API returned no response.", Severity.Error);
+                return;
             }
 
-            if (string.IsNullOrWhiteSpace(extractedText)) throw new Exception("PDF is empty or unreadable.");
-
-            var request = new { cvText = extractedText };
-            var response = await apiClient.PostAsync<object, BaseResponse>("api/CvToInput/Parse", request);
-
-            if (response != null && response.Status && response.Data is System.Text.Json.JsonElement element)
+            if (!response.Status)
             {
-                var rawJson = element.GetRawText();
+                Snackbar.Add(response.Message ?? "CV analysis failed.", Severity.Error);
+                return;
+            }
+
+            if (response.Data is System.Text.Json.JsonElement element)
+            {
                 var options = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
                     PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
                 };
 
-                var prediction = JsonSerializer.Deserialize<AnalysisData>(rawJson, options);
+                ExtractedCvResponse? extractedCv = null;
 
-                if (prediction != null && !string.IsNullOrEmpty(prediction.BestJob))
+                if (element.ValueKind == JsonValueKind.Object)
                 {
-                    // FIX: Ensure UserSkills is not null even if coming from PDF
-                    if (prediction.UserSkills == null) prediction.UserSkills = new();
-
-                    predictionState.Result = prediction;
-                    NavManager.NavigateTo("/result");
-                    Snackbar.Add("Analysis Complete!", Severity.Success);
+                    extractedCv = JsonSerializer.Deserialize<ExtractedCvResponse>(element.GetRawText(), options);
                 }
+                else if (element.ValueKind == JsonValueKind.Array)
+                {
+                    extractedCv = new ExtractedCvResponse
+                    {
+                        Experiences = JsonSerializer.Deserialize<List<ExtractedExperienceDto>>(element.GetRawText(), options) ?? new()
+                    };
+                }
+
+                var extractedExperiences = extractedCv?.Experiences?
+                    .Select(experience => new ExperienceRequest
+                    {
+                        Title = (experience.Title ?? string.Empty).Trim(),
+                        Description = (experience.Description ?? string.Empty).Trim(),
+                        Skills = string.Join(", ",
+                            (experience.Skills ?? new List<string>())
+                                .Select(skill => (skill ?? string.Empty).Trim())
+                                .Where(skill => !string.IsNullOrWhiteSpace(skill))
+                                .Distinct(StringComparer.OrdinalIgnoreCase))
+                    })
+                    .Where(experience =>
+                        !string.IsNullOrWhiteSpace(experience.Title)
+                        || !string.IsNullOrWhiteSpace(experience.Description)
+                        || !string.IsNullOrWhiteSpace(experience.Skills))
+                    .ToList() ?? new();
+
+                if (extractedExperiences.Any())
+                {
+                    MergeJobTitles(extractedExperiences.Select(experience => experience.Title));
+                    inlineExperienceModels = extractedExperiences;
+                    _hasExtractedCvForReview = true;
+                    Snackbar.Add($"Extracted {extractedExperiences.Count} experience{(extractedExperiences.Count == 1 ? "" : "s")} from the CV.", Severity.Success);
+                    StateHasChanged();
+                    return;
+                }
+
+                Snackbar.Add("CV extraction completed but no usable experiences were returned.", Severity.Warning);
+                return;
             }
+
+            Snackbar.Add("CV extraction finished but no structured experience data was returned.", Severity.Warning);
         }
         catch (Exception ex)
         {
@@ -260,6 +294,15 @@
     private void AddExperienceForm()
     {
         inlineExperienceModels.Add(new ExperienceRequest());
+    }
+
+    private void MergeJobTitles(IEnumerable<string> titles)
+    {
+        _jobTitles = _jobTitles
+            .Concat(titles.Where(title => !string.IsNullOrWhiteSpace(title)).Select(title => title.Trim()))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(title => title)
+            .ToArray();
     }
 
     private void RemoveExperienceForm(int index)
@@ -277,9 +320,9 @@
         var experiencesToSubmit = inlineExperienceModels
             .Select(experience => new ExperienceRequest
             {
-                Title = experience.Title.Trim(),
-                Description = experience.Description.Trim(),
-                Skills = experience.Skills.Trim()
+                Title = (experience.Title ?? string.Empty).Trim(),
+                Description = (experience.Description ?? string.Empty).Trim(),
+                Skills = (experience.Skills ?? string.Empty).Trim()
             })
             .ToList();
 
@@ -320,6 +363,7 @@
                     }
 
                     predictionState.Result = prediction;
+                    _hasExtractedCvForReview = false;
                     NavManager.NavigateTo("/result");
                     Snackbar.Add("Analysis Complete!", Severity.Success);
                     return;

@@ -2,6 +2,9 @@ fastapi
 uvicorn
 pydantic
 numpy
-scikit-learn
+pymupdf4llm
+ollama
+python-multipart
+sentence-transformers
 transformers
-psycopg2-binary
+torch

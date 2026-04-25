@@ -57,6 +57,32 @@ public class ServerApiClient
         }
     }
 
+    public async Task<TResponse?> PostFileAsync<TResponse>(string url, Stream fileStream, string fileName, string contentType)
+    {
+        await AddAuthHeader();
+
+        using var form = new MultipartFormDataContent();
+        using var fileContent = new StreamContent(fileStream);
+        if (!MediaTypeHeaderValue.TryParse(contentType, out var mediaType))
+        {
+            mediaType = new MediaTypeHeaderValue("application/pdf");
+        }
+
+        fileContent.Headers.ContentType = mediaType;
+        form.Add(fileContent, "file", Path.GetFileName(fileName));
+
+        var response = await _client.PostAsync(url, form);
+
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<TResponse>();
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
     // --- SPECIFIC METHODS (Business Logic) ---
 
     // This is the 2-argument method your UI is trying to call
@@ -75,7 +101,7 @@ public class ServerApiClient
         return await _client.GetFromJsonAsync<List<JobListingDto>>(url) ?? new List<JobListingDto>();
     }
     private readonly JsonSerializerOptions _options = new() { PropertyNameCaseInsensitive = true };
-    public async Task<SkillGapEnvelopeDTO> GetSkillGapAsync(SkillGapRequest request)
+    public async Task<SkillGapEnvelopeDTO?> GetSkillGapAsync(SkillGapRequest request)
     {
         await AddAuthHeader();
         var response = await _client.PostAsJsonAsync("api/SkillGap/analyze", request);
@@ -83,7 +109,7 @@ public class ServerApiClient
         return await response.Content.ReadFromJsonAsync<SkillGapEnvelopeDTO>(_options);
     }
 
-    public async Task<List<ResourceGroupDTO>> GetResourcesAsync(ResourceRecommendationRequest request)
+    public async Task<List<ResourceGroupDTO>?> GetResourcesAsync(ResourceRecommendationRequest request)
     {
         await AddAuthHeader();
         var response = await _client.PostAsJsonAsync("api/ResourceRecommendation/generate", request);

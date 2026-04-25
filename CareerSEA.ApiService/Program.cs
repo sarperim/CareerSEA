@@ -20,7 +20,6 @@ builder.Services.AddServiceDiscovery();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJobPostService,JobPostService>();
-builder.Services.AddScoped<ILlamaInputService,LlamaInputService>();
 
 builder.Services.AddScoped<ISkillGapService, SkillGapService>();
 
@@ -32,7 +31,9 @@ builder.Services.AddHttpClient<IOnetService, OnetService>(client =>
     var apiKey = builder.Configuration["Onet:ApiKey"];
     if (!string.IsNullOrEmpty(apiKey))
     {
-        client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+        var encoded = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(apiKey));
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encoded);
     }
     client.DefaultRequestHeaders.Add("Accept", "application/json");
 })
@@ -51,24 +52,9 @@ builder.Services.AddHttpClient<IResourceRecommendationService, ResourceRecommend
 })
 .AddStandardResilienceHandler();
 
-builder.AddOllamaApiClient("ollamaModel").AddChatClient();
-builder.Services.AddHttpClient("ollamaModel_httpClient")
-    .AddStandardResilienceHandler(options =>
-    {
-        // 1. Give it 5 minutes for the "Cold Start" on your 3050
-        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(300);
-
-        // 2. TOTAL must be at least as long as the attempt
-        options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(300);
-
-        // 3. CRITICAL: This must be DOUBLE the Attempt Timeout (600s)
-        options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(600);
-    });
-
-builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictionService>(client =>
+Uri ResolveAiServiceUri()
 {
     var aiUrl = builder.Configuration["services:aiservice:api:0"];
-
     if (string.IsNullOrEmpty(aiUrl))
     {
         aiUrl = "http://aiservice:8001";
@@ -77,16 +63,29 @@ builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictio
     {
         aiUrl = aiUrl.Replace("http://", "https://");
     }
+    return new Uri(aiUrl);
+}
 
-    client.BaseAddress = new Uri(aiUrl);
+builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictionService>(client =>
+{
+    client.BaseAddress = ResolveAiServiceUri();
     client.Timeout = TimeSpan.FromMinutes(3);
-}).AddTransientHttpErrorPolicy(policy =>
+})
+.RemoveAllResilienceHandlers()
+.AddTransientHttpErrorPolicy(policy =>
     policy.WaitAndRetryAsync(
         retryCount: 3,
         sleepDurationProvider: retryAttempt =>
             TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) // 2s, 4s, 8s
     )
 );
+
+builder.Services.AddHttpClient("aiservice", client =>
+{
+    client.BaseAddress = ResolveAiServiceUri();
+    client.Timeout = TimeSpan.FromMinutes(5); // Qwen cold-start on first call can be slow
+})
+.RemoveAllResilienceHandlers();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -168,4 +167,3 @@ if (app.Environment.IsDevelopment())
 app.MapDefaultEndpoints();
 
 app.Run();
-

@@ -10,10 +10,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.AddServiceDefaults();
+var apiBaseUrl = builder.Configuration["APISERVICE_HTTP"]
+    ?? builder.Configuration["services:apiservice:https:0"]
+    ?? builder.Configuration["services:apiservice:http:0"]
+    ?? (builder.Environment.IsDevelopment() ? "http://localhost:5416" : "https+http://apiservice");
+var enableHttpsRedirection = !string.IsNullOrWhiteSpace(builder.Configuration["ASPNETCORE_HTTPS_PORT"]);
+
 builder.Services.AddHttpClient<ServerApiClient>(client =>
 {
-    client.BaseAddress = new("https+http://apiservice");
-});
+    client.BaseAddress = new Uri(apiBaseUrl);
+    client.Timeout = TimeSpan.FromMinutes(6);
+})
+.RemoveAllResilienceHandlers();
 
 builder.Services.AddMudServices();
 builder.Services.AddMudExtensions();
@@ -42,7 +50,10 @@ else
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (enableHttpsRedirection)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseStaticFiles();
 app.UseAntiforgery();

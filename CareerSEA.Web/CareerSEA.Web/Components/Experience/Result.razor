@@ -129,7 +129,7 @@
                             <MudPaper Elevation="0" Outlined="true" Class="rounded-lg overflow-hidden">
                                 <div style="max-height: 400px; overflow-y: auto;">
                                     @* FIXED: Virtualize="false" to prevent JS crashes *@
-                                    <MudList T="string" Dense="true" Clickable="true" Virtualize="false">
+                                    <MudList T="string" Dense="true">
                                         @foreach (var job in _jobListings)
                                         {
                                             <MudListItem Href="@job.Link" Target="_blank">
@@ -254,7 +254,7 @@
                                 {
                                     <MudExpansionPanel Text="@($"Learn: {group.Skill}")">
                                         @* FIXED: Virtualize="false" here as well *@
-                                        <MudList T="string" Dense="true" Clickable="true" Virtualize="false">
+                                        <MudList T="string" Dense="true">
                                             @foreach (var res in group.Resources)
                                             {
                                                 <MudListItem Href="@res.Url" Target="_blank">

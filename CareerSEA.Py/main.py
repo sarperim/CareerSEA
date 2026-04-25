@@ -1,230 +1,420 @@
-#Integreted to C# Web-App by Sarp
-#Bert model trained and structured by Emir
-#Numpy cosine matching and fast api by Alphan
-
-#Importing the necessary modules, frameworks and libraries
-#Imports FastAPI framework for API implementation
-from fastapi import FastAPI
-#For defining the body structure for /POST requests
-from pydantic import BaseModel
-# to handle numeric arrays (our embeddings and labels .npy)
-import numpy as np
-# to run the BERT model and work with tensors
-import torch
-#for loading the tokenizer and the BERT model
-from transformers import BertTokenizerFast, AutoModelForSequenceClassification
-#To compute the cosine similarity between the embeddings
-from sklearn.metrics.pairwise import cosine_similarity
-#to load the job labels mapping json file
 import json
+import os
+from pathlib import Path
+import re
+import tempfile
+from typing import List, Optional
+
+import numpy as np
+import ollama
+import pymupdf4llm
+import torch
+import fitz
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
+from sentence_transformers import SentenceTransformer
 import uvicorn
 
+APP_TITLE = "CareerSEA BGE ESCO API"
+APP_VERSION = "1.0.0"
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_LOCAL_ESCO_TITLES_PATH = REPO_ROOT / "CareerSEA.Web" / "CareerSEA.Web" / "JobTitles.cs"
+DEFAULT_CONTAINER_ESCO_TITLES_PATH = Path("/app/data/esco_titles.json")
+
+MODEL_DIR = Path(os.getenv("MODEL_DIR", "/app/model"))
+ESCO_TITLES_PATH = os.getenv(
+    "ESCO_TITLES_PATH",
+    str(
+        DEFAULT_LOCAL_ESCO_TITLES_PATH
+        if DEFAULT_LOCAL_ESCO_TITLES_PATH.exists()
+        else DEFAULT_CONTAINER_ESCO_TITLES_PATH
+    ),
+)
+DEVICE = os.getenv("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
+BGE_QUERY_PREFIX = os.getenv(
+    "BGE_QUERY_PREFIX",
+    "Represent this sentence for searching relevant passages: ",
+)
+NORMALIZE_EMBEDDINGS = os.getenv("NORMALIZE_EMBEDDINGS", "true").lower() == "true"
+MAX_TOP_K = int(os.getenv("MAX_TOP_K", "50"))
+
+app = FastAPI(title=APP_TITLE, version=APP_VERSION)
 
 
-#initializing the API
-app = FastAPI(title="CareerSEA API", version="2.0")
-
-#Paths for the Fine-Tuned BERT model and the tokenizer
-MODEL_PATH = "./fine_tuned_BERT"
-TOKENIZER_PATH = "./tokenizer"
-
-#loading the tokenizer
-tokenizer = BertTokenizerFast.from_pretrained(TOKENIZER_PATH)
-
-#loading the AI model (requesting hidden states as they are required for embeddings)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH, output_hidden_states=True)
-
-#Tells the model that we are in evaluation mode:
-#This disables the Dropout layers which is the process of turning off some neurons to reduce overfitting
-#during training. We disable it to make our prediction stable and deterministic
-model.eval()
-
-#loading the job embeddings
-embeddings = np.load("./job_embeddings.npy")
-#loading the job labels
-labels = np.load("./job_labels.npy")
-
-# loads job label mappings (label -> ID mapping)
-with open("./job_label_mapping.json") as f:
-    mapping = json.load(f)
-
-#extracts the dictionary that maps numeric label IDs to readable job titles
-id2label = mapping["id2label"]
+class EmbedRequest(BaseModel):
+    texts: List[str] = Field(..., min_items=1)
+    add_bge_prefix: bool = True
 
 
-#takes a string as input, converts it to a 1024-dimensional vector and returns the vector
-def get_embedding(text):
-    #tokenizes the text
-    #max length is 80 tokens (if # of tokens<80 -> padding, if # of tokens > 80 -> truncation)
-    #Output is pytorch tensors
-    #Tensor: A multi dimensional array used in deep learning optimized for GPU
-    #Tensor shapes (Scalar: [], Vector: [3], Matrix: [3,3] , 3D: [3,3,3])
-    #We use tensors since they are integrated with BERT(BERT hidden states are returned as tensors)
-    # and also since they are optimized for GPU, they allow us to perform fast GPU operations
-    inputs = tokenizer(
-        text,
-        return_tensors="pt",
-        truncation=True,
-        max_length=80,
-        padding="max_length"
-    )
+class PredictRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+    top_k: int = Field(5, ge=1, le=50)
+    add_bge_prefix: bool = True
 
-    #Tells pytorch to not track gradients which makes evaluation faster(always use this when evaluating)
-    #Gradients: How much each weight(parameter) needs to change to reduce the error.
-    #During the training, the model:
-    #1.Makes a prediction
-    #2.Sees how wrong it is and use gradients to adjust weights and improve
-    #If the gradient is 0(no need for improvement), big negative(decrease the weight),
-    # big positive(increase the weight)
-    with torch.no_grad():
-        #Runs the input through the model by unpacking the input dictionary into arguments
-        outputs = model(**inputs, output_hidden_states=True)
 
-    #outputss.hidden states has 13 layers(0:token embeddings, 1-12: transformer block outputs)
-    #We take the last layer (-1) since it is for task-adapted contextual meaning which is what we need
-    #for generating job embeddings for similarity
-    hidden = outputs.hidden_states[-1]
+class BatchPredictRequest(BaseModel):
+    texts: List[str] = Field(..., min_items=1)
+    top_k: int = Field(5, ge=1, le=50)
+    add_bge_prefix: bool = True
 
-    #Each Tensor shape in BERT-Large: [1, 80, 1024] but the original attention mask is [1,80]
-    #so we unsqueeze it with -1 to add a new dimension to it to make it compatible with the tensor shape
-    mask = inputs["attention_mask"].unsqueeze(-1)
 
-    #Masked mean pooling (better CLS token(beginning of each sentence) which is better for similarity tasks)
-    #(hidden * mask): zeroes out all the paddings so that they won't affect the mean
-    #(hidden * mask).sum(1): Sums of all real(no padding) tokens, mask.sum(1):number of real tokens
-    mean_emb = (hidden * mask).sum(1) / mask.sum(1) #produces the mean vector for all real tokens
+class LegacyPredictJob(BaseModel):
+    title: str = ""
+    description: str = ""
+    skills: str = ""
 
-    #Removing the batch dimension: [1,1024] -> [1024] (gives us a simple ID embedding vector)
-    mean_emb = mean_emb.squeeze(0)
 
-    #L2 normalization (dividing the vector by its length, making its length 1)
-    #We normalize so that all vectors have the same scale and similarity is only calculated based on
-    #the direction(meaning), not the length
-    mean_emb = mean_emb / mean_emb.norm()
+class LegacyPredictRequest(BaseModel):
+    jobs: List[LegacyPredictJob] = Field(..., min_items=1)
 
-    #convert the tensor into numpy array so that it could be stored and processed later on and
-    #return it as the output
-    return mean_emb.numpy()
 
-#Generate embeddings for multiple jobs, in case the user enters multiple jobs instead of one
-def embed_multiple_jobs(job_list):
-    #defining an array of embeddings
-    embs = []
+class SearchResult(BaseModel):
+    label: str
+    score: float
+    rank: int
 
-    #BERT expects a single sentence so combine the details of every job into a single text
-    for job in job_list:
-        text = (
-            f"Title: {job['title']}. "
-            f"Description: {job['description']}. "
-            f"Skills: {job['skills']}."
+
+class HealthResponse(BaseModel):
+    status: str
+    model_loaded: bool
+    model_dir: str
+    device: str
+    esco_titles_loaded: int
+    embedding_dim: Optional[int] = None
+
+
+class ModelService:
+    def __init__(self) -> None:
+        self.model: Optional[SentenceTransformer] = None
+        self.esco_titles: List[str] = []
+        self.esco_embeddings: Optional[np.ndarray] = None
+        self.embedding_dim: Optional[int] = None
+
+    def load(self) -> None:
+        if not MODEL_DIR.exists():
+            raise RuntimeError(f"MODEL_DIR does not exist: {MODEL_DIR}")
+
+        self.model = SentenceTransformer(str(MODEL_DIR), device=DEVICE)
+        self.embedding_dim = self.model.get_sentence_embedding_dimension()
+
+        titles_path = Path(ESCO_TITLES_PATH)
+        if titles_path.exists():
+            self.esco_titles = self._load_esco_titles(titles_path)
+
+            if self.esco_titles:
+                self.esco_embeddings = self._encode(self.esco_titles, add_bge_prefix=False)
+
+    def _load_esco_titles(self, titles_path: Path) -> List[str]:
+        if titles_path.suffix.lower() == ".cs":
+            return self._load_esco_titles_from_csharp(titles_path)
+        return self._load_esco_titles_from_json(titles_path)
+
+    def _load_esco_titles_from_json(self, titles_path: Path) -> List[str]:
+        with open(titles_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        if isinstance(payload, dict):
+            if "titles" in payload and isinstance(payload["titles"], list):
+                return [str(x) for x in payload["titles"]]
+            raise RuntimeError(
+                "ESCO_TITLES_PATH JSON dict must contain a 'titles' list."
+            )
+
+        if isinstance(payload, list):
+            return [str(x) for x in payload]
+
+        raise RuntimeError("ESCO_TITLES_PATH must be a JSON list or dict with 'titles'.")
+
+    def _load_esco_titles_from_csharp(self, titles_path: Path) -> List[str]:
+        source = titles_path.read_text(encoding="utf-8")
+        titles = re.findall(r'"((?:[^"\\]|\\.)*)"', source)
+        if not titles:
+            raise RuntimeError("No string titles found in JobTitles.cs.")
+        return titles
+
+    def _prepare_texts(self, texts: List[str], add_bge_prefix: bool) -> List[str]:
+        prepared = []
+        for text in texts:
+            cleaned = text.strip()
+            if not cleaned:
+                prepared.append(cleaned)
+                continue
+            prepared.append(f"{BGE_QUERY_PREFIX}{cleaned}" if add_bge_prefix else cleaned)
+        return prepared
+
+    def _encode(self, texts: List[str], add_bge_prefix: bool = True) -> np.ndarray:
+        if self.model is None:
+            raise RuntimeError("Model is not loaded.")
+        prepared = self._prepare_texts(texts, add_bge_prefix)
+        embeddings = self.model.encode(
+            prepared,
+            convert_to_numpy=True,
+            normalize_embeddings=NORMALIZE_EMBEDDINGS,
+            show_progress_bar=False,
+        )
+        return embeddings.astype(np.float32)
+
+    def embed(self, texts: List[str], add_bge_prefix: bool = True) -> List[List[float]]:
+        return self._encode(texts, add_bge_prefix=add_bge_prefix).tolist()
+
+    def predict_one(self, text: str, top_k: int = 5, add_bge_prefix: bool = True) -> List[SearchResult]:
+        if self.esco_embeddings is None or not self.esco_titles:
+            raise RuntimeError(
+                "ESCO titles are not loaded. Provide ESCO_TITLES_PATH to enable /predict."
+            )
+
+        query_embedding = self._encode([text], add_bge_prefix=add_bge_prefix)[0]
+        scores = np.matmul(self.esco_embeddings, query_embedding)
+        k = min(top_k, len(self.esco_titles), MAX_TOP_K)
+        top_indices = np.argpartition(-scores, kth=k - 1)[:k]
+        top_indices = top_indices[np.argsort(-scores[top_indices])]
+
+        return [
+            SearchResult(label=self.esco_titles[idx], score=float(scores[idx]), rank=rank + 1)
+            for rank, idx in enumerate(top_indices)
+        ]
+
+
+service = ModelService()
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    service.load()
+
+
+def build_legacy_prediction_text(jobs: List[LegacyPredictJob]) -> str:
+    parts: List[str] = []
+    for job in jobs:
+        job_parts = []
+        if job.title.strip():
+            job_parts.append(f"Title: {job.title.strip()}")
+        if job.description.strip():
+            job_parts.append(f"Description: {job.description.strip()}")
+        if job.skills.strip():
+            job_parts.append(f"Skills: {job.skills.strip()}")
+        if job_parts:
+            parts.append(". ".join(job_parts))
+    return "\n\n".join(parts).strip()
+
+
+def extract_pdf_text(tmp_path: str) -> str:
+    markdown_error: Optional[Exception] = None
+
+    try:
+        markdown = pymupdf4llm.to_markdown(tmp_path)
+        if markdown and markdown.strip():
+            return markdown
+    except Exception as exc:
+        markdown_error = exc
+
+    try:
+        with fitz.open(tmp_path) as pdf:
+            text = "\n\n".join(page.get_text("text") for page in pdf)
+    except Exception as exc:
+        if markdown_error is not None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"PDF parsing failed: {markdown_error}; fallback text extraction failed: {exc}",
+            ) from exc
+        raise HTTPException(status_code=422, detail=f"PDF parsing failed: {exc}") from exc
+
+    if text and text.strip():
+        return text
+
+    if markdown_error is not None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"PDF parsing failed: {markdown_error}. No extractable text found in the file.",
         )
 
-        embs.append(get_embedding(text))#get the embeddings for the combined text
-
-    #np.stack converts the embeddings list to a 2D array (num_jobs, embedding_dimensions)
-    #np.mean(...,axis = 0) averages across all the jobs and produce a single embedding vector for all the jobs
-    return np.mean(np.stack(embs), axis=0)
+    raise HTTPException(status_code=422, detail="No extractable text in PDF (possibly scanned or image-only).")
 
 
-#function to predict the next job for the user
-def predict_next_jobs(job_list):
-    user_emb = embed_multiple_jobs(job_list) #get the job embeddings
-
-    #user embeddings are 1D vectors of shape(1024,) but cosine similarity requires 2D matrices(consisting of 2 vectors)
-    #so we convert the user embeddings into 2D vectors via user_emb.reshape(1, -1)
-    #(1024,) -> (1,1024): 1 vector,with 1024 dimensions
-    #After resizing the cosine similarity is calculated for all embeddings, comparing
-    #the similarity between the user embeddings and the dataset embeddings
-    #[0] at the end removes the batch dimension and returns a simple 1D array
-    sims = cosine_similarity(user_emb.reshape(1, -1), embeddings)[0]
-
-    #find the index with the highest similarity score
-    best_idx = sims.argmax()
-    #find the best job label based on the index found earlier
-    best_label = id2label[str(labels[best_idx])]
-    #find the best match score based on the index found earlier
-    best_score = float(sims[best_idx])
-
-    #defining the top 5 recommendation list and the seen variable to ignore duplicates
-    unique_recommendations = []
-    seen = set()
-
-    # sorts the array in descending order[::-1] and returns the top 5 most similar jobs
-    sorted_indices = sims.argsort()[::-1]
-    # check all the rows to find the best job label, best match score, and top 5 jobs
-    for idx in sorted_indices:
-        job_label = id2label[str(labels[idx])]
-        if job_label not in seen:
-            unique_recommendations.append({
-                "label": job_label,
-                "score": float(sims[idx])
-            })
-            seen.add(job_label)
-
-        if len(unique_recommendations) == 5:
-            break
-    #returning the predicted jobi match score, top 5 similar jobs and user embeddings
-    return best_label, best_score, unique_recommendations, user_emb
+@app.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return HealthResponse(
+        status="ok",
+        model_loaded=service.model is not None,
+        model_dir=str(MODEL_DIR),
+        device=DEVICE,
+        esco_titles_loaded=len(service.esco_titles),
+        embedding_dim=service.embedding_dim,
+    )
 
 
-#Each job entry consists of a job title, job description and the skills used in that job
-class Job(BaseModel):
-    title: str
-    description: str
-    skills: str
-
-#User might input one or multiple jobs so i defined the user input as the list of jobs
-class UserInput(BaseModel):
-    jobs: list[Job]
-
-
-# the prediction endpoint (the main logic of the program)
-@app.post("/predict")
-def predict_api(input_data: UserInput):
-    #to convert the job list from pydantic(/POST request data) into regular python dictionary
-    job_list = [job.dict() for job in input_data.jobs]
-
-    #get the predictions from the prediction function
-    best_job, best_score, recommendations, user_emb = predict_next_jobs(job_list)
-
-    #Send the results to the C# app
+@app.get("/")
+def root() -> dict:
     return {
-        "best_job": best_job,
-        "match_score": best_score,
-        "recommendations": recommendations
+        "message": APP_TITLE,
+        "version": APP_VERSION,
+        "endpoints": ["/health", "/embed", "/predict", "/batch-predict"],
     }
 
-# the root (home) endpoint
-@app.get("/")
-def home():
-    return {"message": "CareerSEA API is running!"}
+
+@app.post("/embed")
+def embed(request: EmbedRequest) -> dict:
+    try:
+        embeddings = service.embed(request.texts, add_bge_prefix=request.add_bge_prefix)
+        return {
+            "count": len(embeddings),
+            "embedding_dim": service.embedding_dim,
+            "embeddings": embeddings,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-#Testing with sample data to see if it works
+@app.post("/predict")
+def predict(request: dict) -> dict:
+    try:
+        if "jobs" in request:
+            legacy_request = LegacyPredictRequest(**request)
+            prediction_text = build_legacy_prediction_text(legacy_request.jobs)
+            if not prediction_text:
+                raise HTTPException(status_code=422, detail="Prediction input was empty after formatting the submitted jobs.")
+
+            predictions = service.predict_one(prediction_text)
+            return {
+                "best_job": predictions[0].label,
+                "match_score": predictions[0].score,
+                "recommendations": [
+                    {"label": item.label, "score": item.score}
+                    for item in predictions
+                ],
+            }
+
+        parsed_request = PredictRequest(**request)
+        predictions = service.predict_one(
+            parsed_request.text,
+            top_k=parsed_request.top_k,
+            add_bge_prefix=parsed_request.add_bge_prefix,
+        )
+        return {
+            "input": parsed_request.text,
+            "top_k": parsed_request.top_k,
+            "predictions": [item.model_dump() for item in predictions],
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/batch-predict")
+def batch_predict(request: BatchPredictRequest) -> dict:
+    try:
+        outputs = []
+        for text in request.texts:
+            predictions = service.predict_one(
+                text,
+                top_k=request.top_k,
+                add_bge_prefix=request.add_bge_prefix,
+            )
+            outputs.append(
+                {
+                    "input": text,
+                    "predictions": [item.model_dump() for item in predictions],
+                }
+            )
+        return {"count": len(outputs), "results": outputs}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+CV_MODEL = "qwen2.5:3b"
+
+CV_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "experiences": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title":       {"type": "string"},
+                    "description": {"type": "string"},
+                    "skills": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["title", "description", "skills"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["experiences"],
+    "additionalProperties": False,
+}
+
+CV_SYSTEM_PROMPT = """You extract work experience from a CV as structured data.
+
+Output ONE object per distinct work experience (job, internship, freelance contract, or significant volunteer role). Order them from most recent to oldest.
+
+For each experience:
+- title: the job title exactly as it appears for that role (e.g., "Senior Backend Engineer"). If the title is missing, use the most specific role descriptor available.
+- description: a 1-2 sentence factual summary of what the candidate did in THAT specific role. Do not summarize their whole career here. Do not invent details not present in the CV.
+- skills: technical skills, tools, frameworks, and programming languages used in THAT specific role. Exclude soft skills. Use canonical names (e.g., "JavaScript" not "JS", "PostgreSQL" not "Postgres"). Deduplicate within the role.
+
+If the CV lists no work experience, return an empty experiences array. Never merge multiple roles into one object. Never split one role into multiple objects."""
+
+
+class ExtractedExperience(BaseModel):
+    title: str
+    description: str
+    skills: list[str]
+
+
+class ExtractedCv(BaseModel):
+    experiences: list[ExtractedExperience]
+
+
+_ollama_client = ollama.Client(host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"))
+
+
+@app.post("/extract-cv", response_model=ExtractedCv)
+async def extract_cv(file: UploadFile = File(...)):
+    content_type = (file.content_type or "").lower()
+    filename = (file.filename or "").lower()
+    if "pdf" not in content_type and not filename.endswith(".pdf"):
+        raise HTTPException(status_code=415, detail="Only PDF uploads are supported.")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        markdown = extract_pdf_text(tmp_path)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+    try:
+        response = _ollama_client.chat(
+            model=CV_MODEL,
+            format=CV_SCHEMA,
+            messages=[
+                {"role": "system", "content": CV_SYSTEM_PROMPT},
+                {"role": "user", "content": markdown},
+            ],
+            options={"temperature": 0.1, "num_ctx": 8192},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"LLM service unavailable: {exc}") from exc
+
+    raw = response["message"]["content"]
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM returned non-JSON: {exc}") from exc
+
+    return ExtractedCv(**parsed)
+
 if __name__ == "__main__":
-   # This ensures the server starts when the script is run directly
-   uvicorn.run(app, host="0.0.0.0", port=8001)
-   """ 
-    test_jobs =  [
-        {
-            "title": "Gymnast",
-            "description": "Competes in high level gymanstics",
-            "skills":"Iron cross, maltase, handstand"
-        },
-        {
-            "title": "Lifting instructor",
-            "description": "Makes people lift weights",
-            "skills":"powerlifting, calisthenics"
-        },
-    ]
-
-    best_job, best_score, recommendations, _ = predict_next_jobs(test_jobs)
-
-    print("Best Job:", best_job)
-    print("Match Score:", best_score)
-    print("Top 5 Best Jobs:")
-    for rec in recommendations:
-        print(rec)
-"""
-
-
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)

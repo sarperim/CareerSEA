@@ -21,7 +21,6 @@
     <PackageReference Include="Aspire.Hosting.Python" Version="13.0.2" />
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="13.1.1" />
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.Python.Extensions" Version="13.0.0" />
-    <PackageReference Include="CommunityToolkit.Aspire.OllamaSharp" Version="13.1.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.11">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

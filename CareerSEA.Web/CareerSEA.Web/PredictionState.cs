@@ -12,7 +12,7 @@ public class PredictionState
 public class AnalysisData
 {
     [JsonPropertyName("best_job")]
-    public string BestJob { get; set; }
+    public string BestJob { get; set; } = string.Empty;
 
     [JsonPropertyName("match_score")]
     public float MatchScore { get; set; }
@@ -25,7 +25,7 @@ public class AnalysisData
 public class JobRecommendation
 {
     [JsonPropertyName("label")]
-    public string Label { get; set; }
+    public string Label { get; set; } = string.Empty;
 
     [JsonPropertyName("score")]
     public float Score { get; set; }

@@ -26,7 +26,7 @@ namespace CareerSEA.ApiService.Controllers
                 var jobs = await _jobPostService.SearchJobsAsync(query, country);
                 return Ok(jobs.ToList());
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex)
             {
                 return StatusCode(500, ex.Message);
             }
