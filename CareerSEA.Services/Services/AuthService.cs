@@ -1,4 +1,5 @@
-﻿using CareerSEA.Contracts.Requests;
+﻿using CareerSEA.Contracts.DTOs;
+using CareerSEA.Contracts.Requests;
 using CareerSEA.Contracts.Responses;
 using CareerSEA.Data;
 using CareerSEA.Data.Entities;
@@ -45,14 +46,19 @@ namespace CareerSEA.Services.Services
             user.PasswordHash = new PasswordHasher<User>().HashPassword(user, request.Password);
             await _dbContext.Users.AddAsync(user);
             await _dbContext.SaveChangesAsync();
-            var response = new BaseResponse
-            {
-                Status = true,
-                Data = user
 
+            var userInfo = new UserInfoDTO
+            {
+                UserId = user.Id.ToString(),
+                Username = user.UserName
             };
 
-            return response;
+            return new BaseResponse
+            {
+                Status = true,
+                Message = "User registered successfully.",
+                Data = userInfo
+            };
         }
 
         public async Task<BaseResponse?> LoginAsync(LoginRequest request)

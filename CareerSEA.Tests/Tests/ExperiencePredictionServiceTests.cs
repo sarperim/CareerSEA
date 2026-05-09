@@ -19,8 +19,8 @@ public class ExperiencePredictionServiceTests
         _output = output;
     }
 
-    [Fact(DisplayName = "SaveForm returns success even when the prediction API throws an exception")]
-    public async Task SaveForm_ShouldReturnSuccess_WhenHttpThrows()
+    [Fact(DisplayName = "SaveForm reports failure and persists nothing when the prediction API throws")]
+    public async Task SaveForm_ShouldReturnFailure_WhenHttpThrows()
     {
         _output.WriteLine("Arrange: Creating user and HTTP client that throws an exception.");
 
@@ -60,11 +60,11 @@ public class ExperiencePredictionServiceTests
 
         var result = await service.SaveForm(request, userId);
 
-        _output.WriteLine("Assert: Method should still return success and save nothing to database.");
+        _output.WriteLine("Assert: Method should report failure and persist nothing.");
         _output.WriteLine($"Predictions count = {db.Predictions.Count()}, Experiences count = {db.Experiences.Count()}");
 
-        Assert.True(result.Status);
-        Assert.Equal("Success", result.Message);
+        Assert.False(result.Status);
+        Assert.Contains("prediction service", result.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(db.Experiences.Where(x => x.UserId == userId));
         Assert.Empty(db.Predictions.Where(x => x.UserId == userId));
     }
@@ -87,13 +87,14 @@ public class ExperiencePredictionServiceTests
         });
         await db.SaveChangesAsync();
 
+        // Mock the actual Python /predict response contract (predictions[] with label/score/rank).
         var json = """
         {
-          "best_job": "Backend Developer",
-          "match_score": 0.91,
-          "recommendations": [
-            { "label": "Software Developer", "score": 0.91 },
-            { "label": "Backend Developer", "score": 0.89 }
+          "input": "Title: Intern. Description: Worked on backend. Skills: C#, SQL",
+          "top_k": 2,
+          "predictions": [
+            { "label": "Software Developer", "score": 0.91, "rank": 1 },
+            { "label": "Backend Developer",  "score": 0.89, "rank": 2 }
           ]
         }
         """;
@@ -151,11 +152,11 @@ public async Task SaveForm_ShouldStorePredictionAccuracy_WhenHttpReturnsValidSuc
 
     var json = """
     {
-      "best_job": "Backend Developer",
-      "match_score": 0.60,
-      "recommendations": [
-        { "label": "Backend Developer", "score": 0.60 },
-        { "label": "Software Developer", "score": 0.34 }
+      "input": "Title: Intern. Description: Worked on backend. Skills: C#, SQL",
+      "top_k": 2,
+      "predictions": [
+        { "label": "Backend Developer",  "score": 0.60, "rank": 1 },
+        { "label": "Software Developer", "score": 0.34, "rank": 2 }
       ]
     }
     """;
@@ -198,8 +199,8 @@ public async Task SaveForm_ShouldStorePredictionAccuracy_WhenHttpReturnsValidSuc
 }
 
 
-[Fact(DisplayName = "SaveForm handles invalid prediction API response")]
-public async Task SaveForm_ShouldHandleInvalidJson_WhenPredictionApiReturnsMalformedResponse()
+[Fact(DisplayName = "SaveForm reports failure and persists nothing when prediction API returns malformed JSON")]
+public async Task SaveForm_ShouldReturnFailure_WhenPredictionApiReturnsMalformedResponse()
 {
     _output.WriteLine("Arrange: Creating user and fake prediction API response with invalid JSON.");
 
@@ -244,19 +245,19 @@ public async Task SaveForm_ShouldHandleInvalidJson_WhenPredictionApiReturnsMalfo
 
     var result = await service.SaveForm(request, userId);
 
-    _output.WriteLine("Assert: Method should handle invalid JSON safely and save nothing.");
+    _output.WriteLine("Assert: Method should report failure and persist nothing.");
     _output.WriteLine($"Predictions count = {db.Predictions.Count()}, Experiences count = {db.Experiences.Count()}");
 
-    Assert.True(result.Status);
-    Assert.Equal("Success", result.Message);
+    Assert.False(result.Status);
+    Assert.Contains("malformed", result.Message, StringComparison.OrdinalIgnoreCase);
     Assert.Empty(db.Experiences.Where(x => x.UserId == userId));
     Assert.Empty(db.Predictions.Where(x => x.UserId == userId));
 }
 
-[Fact(DisplayName = "SaveForm handles empty recommendation list")]
-public async Task SaveForm_ShouldSavePrediction_WhenRecommendationsAreEmpty()
+[Fact(DisplayName = "SaveForm reports failure and persists nothing when prediction API returns no matches")]
+public async Task SaveForm_ShouldReturnFailure_WhenPredictionApiReturnsEmptyPredictions()
 {
-    _output.WriteLine("Arrange: Creating user and fake prediction API response with empty recommendations.");
+    _output.WriteLine("Arrange: Creating user and fake prediction API response with no predictions.");
 
     using var db = TestDbFactory.Create();
 
@@ -273,9 +274,9 @@ public async Task SaveForm_ShouldSavePrediction_WhenRecommendationsAreEmpty()
 
     var json = """
     {
-      "best_job": "Backend Developer",
-      "match_score": 0.60,
-      "recommendations": []
+      "input": "Title: Intern. Description: Worked on backend. Skills: C#, SQL",
+      "top_k": 0,
+      "predictions": []
     }
     """;
 
@@ -299,24 +300,16 @@ public async Task SaveForm_ShouldSavePrediction_WhenRecommendationsAreEmpty()
         Skills = "C#, SQL"
     };
 
-    _output.WriteLine("Act: Calling SaveForm with empty recommendations list.");
+    _output.WriteLine("Act: Calling SaveForm with empty predictions list.");
 
     var result = await service.SaveForm(request, userId);
 
-    _output.WriteLine("Assert: Method should still save prediction and experience.");
+    _output.WriteLine("Assert: Method should report failure and persist nothing.");
 
-    var savedPrediction = db.Predictions.SingleOrDefault(x => x.UserId == userId);
-
-    Assert.True(result.Status);
-    Assert.Equal("Success", result.Message);
-    Assert.Single(db.Experiences.Where(x => x.UserId == userId));
-    Assert.Single(db.Predictions.Where(x => x.UserId == userId));
-    Assert.NotNull(savedPrediction);
-    Assert.NotNull(savedPrediction!.Result);
-    Assert.Equal("Backend Developer", savedPrediction.Result.BestJob);
-    Assert.Equal(0.60, savedPrediction.Result.MatchScore, 2);
-    Assert.NotNull(savedPrediction.Result.Recommendations);
-    Assert.Empty(savedPrediction.Result.Recommendations);
+    Assert.False(result.Status);
+    Assert.Contains("no ranked job matches", result.Message, StringComparison.OrdinalIgnoreCase);
+    Assert.Empty(db.Experiences.Where(x => x.UserId == userId));
+    Assert.Empty(db.Predictions.Where(x => x.UserId == userId));
 }
 
 }

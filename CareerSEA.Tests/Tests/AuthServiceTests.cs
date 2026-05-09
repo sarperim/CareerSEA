@@ -1,3 +1,4 @@
+using CareerSEA.Contracts.DTOs;
 using CareerSEA.Contracts.Requests;
 using CareerSEA.Data.Entities;
 using CareerSEA.Services.Services;
@@ -73,7 +74,7 @@ public class AuthServiceTests
 
         var user = db.Users.Single(u => u.UserName == "alpha");
 
-        _output.WriteLine("Assert: Registration should succeed and password should be hashed.");
+        _output.WriteLine("Assert: Registration should succeed, password should be hashed, and the response must not leak the password hash.");
         _output.WriteLine($"Saved user: {user.UserName}, Name: {user.Name} {user.LastName}");
 
         Assert.True(result.Status);
@@ -81,6 +82,12 @@ public class AuthServiceTests
         Assert.Equal("Algul", user.LastName);
         Assert.NotNull(user.PasswordHash);
         Assert.NotEqual("Secret123!", user.PasswordHash);
+
+        // Response must expose only safe fields via UserInfoDTO; the User entity (with PasswordHash) must not leak.
+        var dto = Assert.IsType<UserInfoDTO>(result.Data);
+        Assert.Equal(user.Id.ToString(), dto.UserId);
+        Assert.Equal("alpha", dto.Username);
+        Assert.IsNotType<User>(result.Data);
     }
     
     /*

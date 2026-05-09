@@ -1,3 +1,8 @@
+// Disabled: this file references LlamaInputService and Microsoft.Extensions.AI,
+// which no longer exist in the codebase (CV ingestion now goes through the Python
+// /extract-cv endpoint via CvExtractionService). Re-enable or rewrite this suite
+// against the current architecture before removing the #if false guard.
+#if false
 using CareerSEA.Contracts.Requests;
 using CareerSEA.Services.Services;
 using Microsoft.Extensions.AI;
@@ -190,3 +195,4 @@ public class LlamaInputServiceTests
         Assert.Null(result);
     }
 }
+#endif

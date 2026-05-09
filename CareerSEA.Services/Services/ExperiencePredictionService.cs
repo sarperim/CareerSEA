@@ -4,6 +4,7 @@ using CareerSEA.Data;
 using CareerSEA.Data.Entities;
 using CareerSEA.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,12 +44,18 @@ namespace CareerSEA.Services.Services
             public int Rank { get; set; }
         }
 
-        public CareerSEADbContext _dbContext;
-        public HttpClient _httpClient;
-        public ExperiencePredictionService(CareerSEADbContext dbContext, HttpClient httpClient)
+        private readonly CareerSEADbContext _dbContext;
+        private readonly HttpClient _httpClient;
+        private readonly ILogger<ExperiencePredictionService>? _logger;
+
+        public ExperiencePredictionService(
+            CareerSEADbContext dbContext,
+            HttpClient httpClient,
+            ILogger<ExperiencePredictionService>? logger = null)
         {
             _httpClient = httpClient;
             _dbContext = dbContext;
+            _logger = logger;
         }
         public async Task<BaseResponse> GetForms(Guid userId)
         {
@@ -111,25 +118,29 @@ namespace CareerSEA.Services.Services
             };
 
             bool userExists = await _dbContext.Users.AnyAsync(u => u.Id == userId);
-            if (userExists)
-            {
-                var experiences = responses.Select(response => new Experience
+
+            // Experiences are constructed but NOT added to the change tracker yet;
+            // they're persisted atomically with the prediction only if the AI call succeeds.
+            var experiencesToSave = userExists
+                ? responses.Select(response => new Experience
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
                     Title = response.Title.Trim(),
                     Description = response.Description.Trim(),
                     Skills = response.Skills.Trim()
-                }).ToList();
-                await _dbContext.Experiences.AddRangeAsync(experiences);
-            }
+                }).ToList()
+                : null;
 
-            return await RunPredictionAsync(aiRequest, userId, saveToDb: userExists);
+            return await RunPredictionAsync(aiRequest, userId, savePrediction: userExists, experiencesToSave);
         }
 
-        private async Task<BaseResponse> RunPredictionAsync(AIRequest aiRequest, Guid userId, bool saveToDb = true)
+        private async Task<BaseResponse> RunPredictionAsync(
+            AIRequest aiRequest,
+            Guid userId,
+            bool savePrediction,
+            List<Experience>? experiencesToSave)
         {
-            AIResponse? aiResult = null;
             try
             {
                 var predictionText = BuildPredictionText(aiRequest);
@@ -158,16 +169,32 @@ namespace CareerSEA.Services.Services
                 if (!httpResponse.IsSuccessStatusCode)
                 {
                     var errorDetails = await httpResponse.Content.ReadAsStringAsync();
+                    _logger?.LogWarning(
+                        "Prediction API returned non-success status {StatusCode} for user {UserId}: {Details}",
+                        httpResponse.StatusCode, userId, errorDetails);
                     return new BaseResponse
                     {
                         Status = false,
-                        Message = $"Python API failed with status code: {httpResponse.StatusCode}. {errorDetails}"
+                        Message = $"Prediction service failed with status code {(int)httpResponse.StatusCode}."
                     };
                 }
 
                 var responseString = await httpResponse.Content.ReadAsStringAsync();
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var pythonResult = JsonSerializer.Deserialize<PythonPredictResponse>(responseString, options);
+                PythonPredictResponse? pythonResult;
+                try
+                {
+                    pythonResult = JsonSerializer.Deserialize<PythonPredictResponse>(responseString, options);
+                }
+                catch (JsonException ex)
+                {
+                    _logger?.LogError(ex, "Prediction API returned malformed JSON for user {UserId}.", userId);
+                    return new BaseResponse
+                    {
+                        Status = false,
+                        Message = "Prediction service returned a malformed response."
+                    };
+                }
 
                 if (pythonResult?.Predictions == null || !pythonResult.Predictions.Any())
                 {
@@ -182,7 +209,7 @@ namespace CareerSEA.Services.Services
                     .OrderBy(prediction => prediction.Rank)
                     .ToList();
 
-                aiResult = new AIResponse
+                var aiResult = new AIResponse
                 {
                     best_job = orderedPredictions[0].Label,
                     match_score = orderedPredictions[0].Score,
@@ -193,7 +220,7 @@ namespace CareerSEA.Services.Services
                     }).ToList()
                 };
 
-                if (saveToDb)
+                if (savePrediction)
                 {
                     var dbResult = new PredictionResult
                     {
@@ -213,26 +240,30 @@ namespace CareerSEA.Services.Services
                         Result = dbResult
                     };
 
+                    if (experiencesToSave != null && experiencesToSave.Count > 0)
+                    {
+                        await _dbContext.Experiences.AddRangeAsync(experiencesToSave);
+                    }
                     await _dbContext.Predictions.AddAsync(predictionEntry);
                     await _dbContext.SaveChangesAsync();
                 }
+
+                return new BaseResponse
+                {
+                    Status = true,
+                    Message = "Success",
+                    Data = aiResult
+                };
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"AI Service Error: {ex.Message}");
+                _logger?.LogError(ex, "Prediction service call failed for user {UserId}.", userId);
                 return new BaseResponse
                 {
                     Status = false,
                     Message = "An error occurred while communicating with the prediction service."
                 };
             }
-
-            return new BaseResponse
-            {
-                Status = true,
-                Message = "Success",
-                Data = aiResult
-            };
         }
 
         private static string BuildPredictionText(AIRequest aiRequest)
@@ -282,8 +313,10 @@ namespace CareerSEA.Services.Services
                 };
             }
 
+            // Llama-driven flow only persists the prediction itself; experiences
+            // were already saved during the original CV ingestion step.
             bool userExists = await _dbContext.Users.AnyAsync(u => u.Id == userId);
-            return await RunPredictionAsync(llamaOutput, userId, saveToDb: userExists);
+            return await RunPredictionAsync(llamaOutput, userId, savePrediction: userExists, experiencesToSave: null);
         }
     }
 }
