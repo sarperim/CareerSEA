@@ -80,7 +80,7 @@ builder.Services.AddHttpClient<IExperiencePredictionService, ExperiencePredictio
     )
 );
 
-builder.Services.AddHttpClient("aiservice", client =>
+builder.Services.AddHttpClient<ICvExtractionService, CvExtractionService>(client =>
 {
     client.BaseAddress = ResolveAiServiceUri();
     client.Timeout = TimeSpan.FromMinutes(5); // Qwen cold-start on first call can be slow
