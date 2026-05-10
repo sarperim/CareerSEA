@@ -39,7 +39,7 @@ namespace CareerSEA.Services.Services
     };
 
             var queryString = await new FormUrlEncodedContent(queryParams).ReadAsStringAsync();
-            var url = $"https://api.adzuna.com/v1/api/jobs/{country}/search/1?{queryString}";
+            var url = $"v1/api/jobs/{country}/search/1?{queryString}";
 
             var response = await _httpClient.GetAsync(url);
 

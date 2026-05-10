@@ -46,12 +46,12 @@ namespace CareerSEA.Services.Services
 
         private readonly CareerSEADbContext _dbContext;
         private readonly HttpClient _httpClient;
-        private readonly ILogger<ExperiencePredictionService>? _logger;
+        private readonly ILogger<ExperiencePredictionService> _logger;
 
         public ExperiencePredictionService(
             CareerSEADbContext dbContext,
             HttpClient httpClient,
-            ILogger<ExperiencePredictionService>? logger = null)
+            ILogger<ExperiencePredictionService> logger)
         {
             _httpClient = httpClient;
             _dbContext = dbContext;

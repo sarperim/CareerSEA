@@ -1,3 +1,4 @@
+using CareerSEA.Contracts.DTOs;
 using CareerSEA.Services.Services;
 using CareerSEA.Tests.Fakes;
 using Xunit;
@@ -72,9 +73,8 @@ public class SkillGapServiceTests
             "html"
         });
 
-        var gap = (Dictionary<string, object>)result["technology_gap"];
-        var matched = (List<string>)gap["matched_skills"];
-        var missing = (List<string>)gap["missing_skills"];
+        var matched = result.TechnologyGap.MatchedSkills;
+        var missing = result.TechnologyGap.MissingSkills;
 
         _output.WriteLine($"Assert: Matched count = {matched.Count}, Missing count = {missing.Count}");
 
@@ -119,8 +119,7 @@ public class SkillGapServiceTests
             "javascript, vue.js, html"
         });
 
-        var gap = (Dictionary<string, object>)result["technology_gap"];
-        var matched = (List<string>)gap["matched_skills"];
+        var matched = result.TechnologyGap.MatchedSkills;
 
         _output.WriteLine($"Assert: Matched skills count = {matched.Count}");
 

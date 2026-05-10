@@ -4,6 +4,7 @@ using CareerSEA.Data.Entities;
 using CareerSEA.Services.Services;
 using CareerSEA.Tests.Helpers;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -17,6 +18,14 @@ public class AuthServiceTests
     {
         _output = output;
     }
+
+    private static IConfiguration TestConfig() =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:SecretKey"] = "TestSecretKeyForTestingPurposesOnlyMinimum32Chars!"
+            })
+            .Build();
 
     [Fact(DisplayName = "Register fails when the username already exists")]
     public async Task RegisterAsync_ShouldFail_WhenUserAlreadyExists()
@@ -36,7 +45,7 @@ public class AuthServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new AuthService(db);
+        var service = new AuthService(db, TestConfig());
 
         _output.WriteLine("Act: Attempting to register another user with the same username.");
 
@@ -60,7 +69,7 @@ public class AuthServiceTests
         _output.WriteLine("Arrange: Creating empty test database.");
 
         using var db = TestDbFactory.Create();
-        var service = new AuthService(db);
+        var service = new AuthService(db, TestConfig());
 
         _output.WriteLine("Act: Registering a new user with username 'alpha'.");
 
@@ -169,7 +178,7 @@ public class AuthServiceTests
         _output.WriteLine("Arrange: Creating empty test database.");
 
         using var db = TestDbFactory.Create();
-        var service = new AuthService(db);
+        var service = new AuthService(db, TestConfig());
 
         _output.WriteLine("Act: Attempting login for a missing user.");
 
@@ -205,7 +214,7 @@ public class AuthServiceTests
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var service = new AuthService(db);
+        var service = new AuthService(db, TestConfig());
 
         _output.WriteLine("Act: Attempting login with the wrong password.");
 
@@ -241,7 +250,7 @@ public class AuthServiceTests
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var service = new AuthService(db);
+        var service = new AuthService(db, TestConfig());
 
         _output.WriteLine("Act: Logging in with valid credentials.");
 

@@ -21,10 +21,13 @@ namespace CareerSEA.Services.Services
 {
     public class AuthService : IAuthService
     {
-        public CareerSEADbContext _dbContext;
-        public AuthService(CareerSEADbContext dbContext)
+        private readonly CareerSEADbContext _dbContext;
+        private readonly IConfiguration _configuration;
+
+        public AuthService(CareerSEADbContext dbContext, IConfiguration configuration)
         {
-            this._dbContext = dbContext;
+            _dbContext = dbContext;
+            _configuration = configuration;
         }
 
         public async Task<BaseResponse> RegisterAsync(SignupRequest request)
@@ -99,14 +102,15 @@ namespace CareerSEA.Services.Services
                 RefreshToken = await GenerateAndSaveRefreshTokenAsync(user)
             };
         }
-        //!!!use keyvault in the deployment this functions isn't safe
         private string CreateToken(User user)
         {
             var claims = new List<Claim> {
                 new Claim(ClaimTypes.Name,user.UserName),
                 new Claim(ClaimTypes.NameIdentifier,user.Id.ToString())
             };
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("MyVerySecureSecretKeyHere53278!!@#$%*^*^^*^%&!"));
+            var secret = _configuration["Jwt:SecretKey"]
+                ?? throw new InvalidOperationException("Jwt:SecretKey is not configured.");
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var tokenDescriptor = new JwtSecurityToken(

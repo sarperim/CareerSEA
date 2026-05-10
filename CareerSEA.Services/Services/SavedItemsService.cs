@@ -16,11 +16,11 @@ namespace CareerSEA.Services.Services
     public class SavedItemsService : ISavedItemsService
     {
         private readonly CareerSEADbContext _dbContext;
-        private readonly ILogger<SavedItemsService>? _logger;
+        private readonly ILogger<SavedItemsService> _logger;
 
         public SavedItemsService(
             CareerSEADbContext dbContext,
-            ILogger<SavedItemsService>? logger = null)
+            ILogger<SavedItemsService> logger)
         {
             _dbContext = dbContext;
             _logger = logger;

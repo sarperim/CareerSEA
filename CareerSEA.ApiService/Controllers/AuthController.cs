@@ -13,10 +13,11 @@ namespace CareerSEA.ApiService.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        public readonly IAuthService _authService;
-        public AuthController(IAuthService authService) 
+        private readonly IAuthService _authService;
+
+        public AuthController(IAuthService authService)
         {
-            this._authService = authService;
+            _authService = authService;
         }
 
 

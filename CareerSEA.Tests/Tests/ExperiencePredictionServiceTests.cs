@@ -2,6 +2,7 @@ using CareerSEA.Contracts.Requests;
 using CareerSEA.Data.Entities;
 using CareerSEA.Services.Services;
 using CareerSEA.Tests.Helpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -47,7 +48,7 @@ public class ExperiencePredictionServiceTests
             BaseAddress = new Uri("http://localhost")
         };
 
-        var service = new ExperiencePredictionService(db, httpClient);
+        var service = new ExperiencePredictionService(db, httpClient, NullLogger<ExperiencePredictionService>.Instance);
 
         var request = new ExperienceRequest
         {
@@ -110,7 +111,7 @@ public class ExperiencePredictionServiceTests
             BaseAddress = new Uri("http://localhost")
         };
 
-        var service = new ExperiencePredictionService(db, httpClient);
+        var service = new ExperiencePredictionService(db, httpClient, NullLogger<ExperiencePredictionService>.Instance);
 
         var request = new ExperienceRequest
         {
@@ -172,7 +173,7 @@ public async Task SaveForm_ShouldStorePredictionAccuracy_WhenHttpReturnsValidSuc
         BaseAddress = new Uri("http://localhost")
     };
 
-    var service = new ExperiencePredictionService(db, httpClient);
+    var service = new ExperiencePredictionService(db, httpClient, NullLogger<ExperiencePredictionService>.Instance);
 
     var request = new ExperienceRequest
     {
@@ -232,7 +233,7 @@ public async Task SaveForm_ShouldReturnFailure_WhenPredictionApiReturnsMalformed
         BaseAddress = new Uri("http://localhost")
     };
 
-    var service = new ExperiencePredictionService(db, httpClient);
+    var service = new ExperiencePredictionService(db, httpClient, NullLogger<ExperiencePredictionService>.Instance);
 
     var request = new ExperienceRequest
     {
@@ -291,7 +292,7 @@ public async Task SaveForm_ShouldReturnFailure_WhenPredictionApiReturnsEmptyPred
         BaseAddress = new Uri("http://localhost")
     };
 
-    var service = new ExperiencePredictionService(db, httpClient);
+    var service = new ExperiencePredictionService(db, httpClient, NullLogger<ExperiencePredictionService>.Instance);
 
     var request = new ExperienceRequest
     {

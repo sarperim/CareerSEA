@@ -19,7 +19,10 @@ builder.AddNpgsqlDbContext<CareerSEADbContext>("webAppDb");
 builder.Services.AddServiceDiscovery();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IJobPostService,JobPostService>();
+builder.Services.AddHttpClient<IJobPostService, JobPostService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.adzuna.com/");
+});
 builder.Services.AddScoped<ISavedItemsService, SavedItemsService>();
 
 builder.Services.AddScoped<ISkillGapService, SkillGapService>();
@@ -131,6 +134,9 @@ builder.Services.AddProblemDetails();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(
     options =>
     {
+        var jwtSecret = builder.Configuration["Jwt:SecretKey"]
+            ?? throw new InvalidOperationException("Jwt:SecretKey is not configured.");
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -138,8 +144,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             ValidateAudience = true,
             ValidAudience = "MyUsers",
             ValidateLifetime = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes("MyVerySecureSecretKeyHere53278!!@#$%*^*^^*^%&!")),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
             ValidateIssuerSigningKey = true,
         };
     });
