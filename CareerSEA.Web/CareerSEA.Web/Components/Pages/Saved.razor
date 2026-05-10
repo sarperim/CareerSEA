@@ -1,0 +1,198 @@
+@page "/saved"
+@rendermode InteractiveServer
+
+@using CareerSEA.Contracts.DTOs
+@using MudBlazor
+@using CareerSEA.Web
+
+@inject NavigationManager NavigationManager
+@inject ServerApiClient ApiClient
+
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-8">
+
+    <MudCard Elevation="4" Class="rounded-xl position-relative">
+
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       Size="Size.Small"
+                       Class="absolute left-0 top-0 ma-4 z-10"
+                       OnClick="@(() => NavigationManager.NavigateTo("/result"))" />
+
+        <MudCardHeader Class="d-flex flex-column align-center py-8">
+            <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold">
+                Saved Jobs &amp; Tutorials
+            </MudText>
+        </MudCardHeader>
+
+        <MudCardContent Class="pa-8">
+
+            @if (_isLoading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4 rounded" />
+            }
+            else if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@_errorMessage</MudAlert>
+            }
+            else
+            {
+                @* --- SAVED JOBS --- *@
+                <div class="mb-8">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Saved Jobs</MudText>
+
+                    @if (_savedItems?.Jobs == null || !_savedItems.Jobs.Any())
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            You haven't saved any jobs yet. Bookmark them from the Results page.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudPaper Elevation="0" Outlined="true" Class="rounded-lg overflow-hidden">
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                <MudList T="string" Dense="true">
+                                    @foreach (var job in _savedItems.Jobs)
+                                    {
+                                        <MudListItem Href="@job.Link" Target="_blank">
+                                            <div class="d-flex justify-space-between align-center">
+                                                <div>
+                                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@job.Title</MudText>
+                                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                                        @job.Company • @job.Location
+                                                    </MudText>
+                                                </div>
+                                                <div class="d-flex align-center gap-1"
+                                                     @onclick:stopPropagation="true"
+                                                     @onclick:preventDefault="true">
+                                                    <MudIconButton Size="Size.Small"
+                                                                   Color="Color.Error"
+                                                                   Icon="@Icons.Material.Filled.Delete"
+                                                                   OnClick="@(() => RemoveJobAsync(job))" />
+                                                    <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Default" />
+                                                </div>
+                                            </div>
+                                        </MudListItem>
+                                        <MudDivider Light="true" />
+                                    }
+                                </MudList>
+                            </div>
+                        </MudPaper>
+                    }
+                </div>
+
+                <MudDivider Class="my-8" />
+
+                @* --- SAVED TUTORIALS --- *@
+                <div class="mb-8">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Saved Tutorials</MudText>
+
+                    @if (_savedItems?.Resources == null || !_savedItems.Resources.Any())
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            You haven't saved any tutorials yet. Bookmark them from the Recommended Courses section.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudExpansionPanels MultiExpansion="true">
+                            @foreach (var group in _savedItems.Resources)
+                            {
+                                <MudExpansionPanel Text="@($"{group.Skill} ({group.Resources.Count})")">
+                                    <MudList T="string" Dense="true">
+                                        @foreach (var res in group.Resources)
+                                        {
+                                            <MudListItem Href="@res.Url" Target="_blank">
+                                                <div class="d-flex justify-space-between align-center">
+                                                    <div class="d-flex align-center">
+                                                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Class="mr-3 mud-text-secondary" />
+                                                        <div>
+                                                            <MudText Typo="Typo.body2" Class="font-weight-bold">@res.Title</MudText>
+                                                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@res.Provider</MudText>
+                                                        </div>
+                                                    </div>
+                                                    <span @onclick:stopPropagation="true"
+                                                          @onclick:preventDefault="true">
+                                                        <MudIconButton Size="Size.Small"
+                                                                       Color="Color.Error"
+                                                                       Icon="@Icons.Material.Filled.Delete"
+                                                                       OnClick="@(() => RemoveResourceAsync(res))" />
+                                                    </span>
+                                                </div>
+                                            </MudListItem>
+                                        }
+                                    </MudList>
+                                </MudExpansionPanel>
+                            }
+                        </MudExpansionPanels>
+                    }
+                </div>
+            }
+
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private SavedItemsResponse? _savedItems;
+    private bool _isLoading = true;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            _savedItems = await ApiClient.GetSavedItemsAsync() ?? new SavedItemsResponse();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Failed to load saved items. " + ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RemoveJobAsync(SavedJobDTO job)
+    {
+        if (_savedItems == null) return;
+
+        var ok = await ApiClient.UnsaveJobAsync(job.Id);
+        if (ok)
+        {
+            _savedItems.Jobs.Remove(job);
+            StateHasChanged();
+        }
+    }
+
+    private async Task RemoveResourceAsync(SavedResourceDTO res)
+    {
+        if (_savedItems == null) return;
+
+        var ok = await ApiClient.UnsaveResourceAsync(res.Id);
+        if (!ok) return;
+
+        foreach (var group in _savedItems.Resources)
+        {
+            if (group.Resources.Remove(res)) break;
+        }
+        // Drop empty groups so the page doesn't show empty expansion panels.
+        _savedItems.Resources.RemoveAll(g => g.Resources.Count == 0);
+        StateHasChanged();
+    }
+}

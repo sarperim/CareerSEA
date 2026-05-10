@@ -14,6 +14,8 @@ namespace CareerSEA.Data
         public DbSet<Prediction> Predictions { get; set; }
         public DbSet<Experience> Experiences { get; set; }
         public DbSet<ESCO_Occupation> ESCO_Occupations { get; set; }
+        public DbSet<SavedJob> SavedJobs { get; set; }
+        public DbSet<SavedResource> SavedResources { get; set; }
 
         public CareerSEADbContext(DbContextOptions<CareerSEADbContext> options) : base(options) { } 
 
@@ -58,6 +60,24 @@ namespace CareerSEA.Data
                     builder.ToJson(); // Tells EF this entire object is a JSON column
                     builder.OwnsMany(r => r.Recommendations);
                 });
+            });
+
+            modelBuilder.Entity<SavedJob>(entity =>
+            {
+                entity.HasIndex(s => new { s.UserId, s.Link }).IsUnique();
+                entity.HasOne(s => s.User)
+                    .WithMany(u => u.SavedJobs)
+                    .HasForeignKey(s => s.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<SavedResource>(entity =>
+            {
+                entity.HasIndex(s => new { s.UserId, s.Url }).IsUnique();
+                entity.HasOne(s => s.User)
+                    .WithMany(u => u.SavedResources)
+                    .HasForeignKey(s => s.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

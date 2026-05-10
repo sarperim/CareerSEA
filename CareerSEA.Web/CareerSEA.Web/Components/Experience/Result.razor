@@ -138,7 +138,15 @@
                                                         <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@job.Title</MudText>
                                                         <MudText Typo="Typo.caption" Class="mud-text-secondary">@job.Company • @job.Location</MudText>
                                                     </div>
-                                                    <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Default" />
+                                                    <div class="d-flex align-center gap-1"
+                                                         @onclick:stopPropagation="true"
+                                                         @onclick:preventDefault="true">
+                                                        <MudIconButton Size="Size.Small"
+                                                                       Color="@(_savedJobLinks.Contains(job.Link) ? Color.Primary : Color.Default)"
+                                                                       Icon="@(_savedJobLinks.Contains(job.Link) ? Icons.Material.Filled.Bookmark : Icons.Material.Outlined.BookmarkBorder)"
+                                                                       OnClick="@(() => ToggleSaveJobAsync(job))" />
+                                                        <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Default" />
+                                                    </div>
                                                 </div>
                                             </MudListItem>
                                             <MudDivider Light="true" />
@@ -258,12 +266,21 @@
                                             @foreach (var res in group.Resources)
                                             {
                                                 <MudListItem Href="@res.Url" Target="_blank">
-                                                    <div class="d-flex align-center">
-                                                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Class="mr-3 mud-text-secondary" />
-                                                        <div>
-                                                            <MudText Typo="Typo.body2" Class="font-weight-bold">@res.Title</MudText>
-                                                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@res.Provider</MudText>
+                                                    <div class="d-flex justify-space-between align-center">
+                                                        <div class="d-flex align-center">
+                                                            <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Class="mr-3 mud-text-secondary" />
+                                                            <div>
+                                                                <MudText Typo="Typo.body2" Class="font-weight-bold">@res.Title</MudText>
+                                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@res.Provider</MudText>
+                                                            </div>
                                                         </div>
+                                                        <span @onclick:stopPropagation="true"
+                                                              @onclick:preventDefault="true">
+                                                            <MudIconButton Size="Size.Small"
+                                                                           Color="@(_savedResourceUrls.Contains(res.Url) ? Color.Primary : Color.Default)"
+                                                                           Icon="@(_savedResourceUrls.Contains(res.Url) ? Icons.Material.Filled.Bookmark : Icons.Material.Outlined.BookmarkBorder)"
+                                                                           OnClick="@(() => ToggleSaveResourceAsync(res))" />
+                                                        </span>
                                                     </div>
                                                 </MudListItem>
                                             }
@@ -300,9 +317,90 @@
     private bool _isLoadingResources;
     private string _resourceError = string.Empty;
 
-    protected override void OnInitialized()
+    // Saved-items tracking: links/URLs already saved by this user, plus their saved-row id (for unsave).
+    private HashSet<string> _savedJobLinks = new();
+    private HashSet<string> _savedResourceUrls = new();
+    private Dictionary<string, Guid> _savedJobIdsByLink = new();
+    private Dictionary<string, Guid> _savedResourceIdsByUrl = new();
+
+    protected override async Task OnInitializedAsync()
     {
         _data = predictionState.Result;
+        await LoadSavedItemsAsync();
+    }
+
+    private async Task LoadSavedItemsAsync()
+    {
+        try
+        {
+            var saved = await ApiClient.GetSavedItemsAsync();
+            if (saved == null) return;
+
+            _savedJobLinks = saved.Jobs.Select(j => j.Link).ToHashSet();
+            _savedJobIdsByLink = saved.Jobs.ToDictionary(j => j.Link, j => j.Id);
+
+            var allResources = saved.Resources.SelectMany(g => g.Resources).ToList();
+            _savedResourceUrls = allResources.Select(r => r.Url).ToHashSet();
+            _savedResourceIdsByUrl = allResources.ToDictionary(r => r.Url, r => r.Id);
+        }
+        catch
+        {
+            // Silent: saved-state UI is non-critical; bookmark icons just stay empty.
+        }
+    }
+
+    private async Task ToggleSaveJobAsync(JobListingDto job)
+    {
+        if (string.IsNullOrWhiteSpace(job?.Link)) return;
+
+        if (_savedJobLinks.Contains(job.Link)
+            && _savedJobIdsByLink.TryGetValue(job.Link, out var savedId))
+        {
+            var ok = await ApiClient.UnsaveJobAsync(savedId);
+            if (ok)
+            {
+                _savedJobLinks.Remove(job.Link);
+                _savedJobIdsByLink.Remove(job.Link);
+            }
+        }
+        else
+        {
+            var saved = await ApiClient.SaveJobAsync(job);
+            if (saved != null)
+            {
+                _savedJobLinks.Add(saved.Link);
+                _savedJobIdsByLink[saved.Link] = saved.Id;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ToggleSaveResourceAsync(ResourceItemDTO res)
+    {
+        if (string.IsNullOrWhiteSpace(res?.Url)) return;
+
+        if (_savedResourceUrls.Contains(res.Url)
+            && _savedResourceIdsByUrl.TryGetValue(res.Url, out var savedId))
+        {
+            var ok = await ApiClient.UnsaveResourceAsync(savedId);
+            if (ok)
+            {
+                _savedResourceUrls.Remove(res.Url);
+                _savedResourceIdsByUrl.Remove(res.Url);
+            }
+        }
+        else
+        {
+            var saved = await ApiClient.SaveResourceAsync(res);
+            if (saved != null)
+            {
+                _savedResourceUrls.Add(saved.Url);
+                _savedResourceIdsByUrl[saved.Url] = saved.Id;
+            }
+        }
+
+        StateHasChanged();
     }
 
     private async Task SearchJobsAsync(string? jobTitle)

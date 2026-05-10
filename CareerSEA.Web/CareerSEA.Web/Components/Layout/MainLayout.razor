@@ -1,10 +1,37 @@
 ﻿@inherits LayoutComponentBase
 @using MudBlazor.Utilities
 @using MudBlazor
+@inject NavigationManager Nav
 
 <MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="_theme" />
 <MudDialogProvider />
 <MudSnackbarProvider />
+
+@* Bookmark tab is hidden on auth pages. Styles are inlined to avoid app.css cache issues. *@
+@if (ShowSavedBookmark)
+{
+    <a href="/saved"
+       title="View saved jobs and tutorials"
+       style="position: fixed;
+              left: 0;
+              top: 50%;
+              transform: translateY(-50%);
+              writing-mode: vertical-rl;
+              background: #10b981;
+              color: #ffffff;
+              padding: 14px 8px;
+              border-radius: 0 8px 8px 0;
+              font-size: 0.85rem;
+              font-weight: 600;
+              letter-spacing: 0.08em;
+              text-decoration: none;
+              z-index: 1100;
+              box-shadow: 2px 0 8px rgba(0, 0, 0, 0.35);
+              user-select: none;
+              cursor: pointer;">
+        Saved
+    </a>
+}
 
 <MudLayout>
     <MudMainContent>
@@ -13,6 +40,19 @@
 </MudLayout>
 
 @code {
+    private static readonly string[] HiddenRoutes = new[] { "", "signup" };
+
+    private bool ShowSavedBookmark
+    {
+        get
+        {
+            var path = Nav.ToBaseRelativePath(Nav.Uri).Trim('/').ToLowerInvariant();
+            // Strip any querystring/fragment so "/?foo=bar" still matches "" too.
+            var pathOnly = path.Split('?', '#')[0];
+            return !HiddenRoutes.Contains(pathOnly);
+        }
+    }
+
     // 2. Set Dark Mode to TRUE by default
     private bool _isDarkMode = true;
 

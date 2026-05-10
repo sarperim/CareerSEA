@@ -1,5 +1,6 @@
 ﻿using CareerSEA.Contracts.DTOs; // Ensure this namespace matches where your DTO is
 using CareerSEA.Contracts.Requests;
+using CareerSEA.Contracts.Responses;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -115,5 +116,108 @@ public class ServerApiClient
         var response = await _client.PostAsJsonAsync("api/ResourceRecommendation/generate", request);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<List<ResourceGroupDTO>>();
+    }
+
+    // --- SAVED ITEMS ---
+
+    public async Task<SavedItemsResponse?> GetSavedItemsAsync()
+    {
+        await AddAuthHeader();
+        try
+        {
+            var response = await _client.GetAsync("api/SavedItems");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var envelope = await response.Content.ReadFromJsonAsync<BaseResponse>(_options);
+            if (envelope == null || !envelope.Status || envelope.Data == null) return null;
+
+            // Data is round-tripped as JsonElement; deserialize again into the typed payload.
+            var dataJson = envelope.Data is JsonElement element
+                ? element.GetRawText()
+                : JsonSerializer.Serialize(envelope.Data);
+            return JsonSerializer.Deserialize<SavedItemsResponse>(dataJson, _options);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<SavedJobDTO?> SaveJobAsync(JobListingDto job)
+    {
+        await AddAuthHeader();
+        try
+        {
+            var response = await _client.PostAsJsonAsync("api/SavedItems/jobs", job);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var envelope = await response.Content.ReadFromJsonAsync<BaseResponse>(_options);
+            if (envelope == null || !envelope.Status || envelope.Data == null) return null;
+
+            var dataJson = envelope.Data is JsonElement element
+                ? element.GetRawText()
+                : JsonSerializer.Serialize(envelope.Data);
+            return JsonSerializer.Deserialize<SavedJobDTO>(dataJson, _options);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> UnsaveJobAsync(Guid id)
+    {
+        await AddAuthHeader();
+        try
+        {
+            var response = await _client.DeleteAsync($"api/SavedItems/jobs/{id}");
+            if (!response.IsSuccessStatusCode) return false;
+
+            var envelope = await response.Content.ReadFromJsonAsync<BaseResponse>(_options);
+            return envelope?.Status == true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<SavedResourceDTO?> SaveResourceAsync(ResourceItemDTO resource)
+    {
+        await AddAuthHeader();
+        try
+        {
+            var response = await _client.PostAsJsonAsync("api/SavedItems/resources", resource);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var envelope = await response.Content.ReadFromJsonAsync<BaseResponse>(_options);
+            if (envelope == null || !envelope.Status || envelope.Data == null) return null;
+
+            var dataJson = envelope.Data is JsonElement element
+                ? element.GetRawText()
+                : JsonSerializer.Serialize(envelope.Data);
+            return JsonSerializer.Deserialize<SavedResourceDTO>(dataJson, _options);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> UnsaveResourceAsync(Guid id)
+    {
+        await AddAuthHeader();
+        try
+        {
+            var response = await _client.DeleteAsync($"api/SavedItems/resources/{id}");
+            if (!response.IsSuccessStatusCode) return false;
+
+            var envelope = await response.Content.ReadFromJsonAsync<BaseResponse>(_options);
+            return envelope?.Status == true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

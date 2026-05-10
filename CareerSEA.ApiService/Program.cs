@@ -20,6 +20,7 @@ builder.Services.AddServiceDiscovery();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJobPostService,JobPostService>();
+builder.Services.AddScoped<ISavedItemsService, SavedItemsService>();
 
 builder.Services.AddScoped<ISkillGapService, SkillGapService>();
 

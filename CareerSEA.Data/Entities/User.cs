@@ -18,5 +18,7 @@ namespace CareerSEA.Data.Entities
 
         public ICollection<Experience> Experiences { get; set; } = new List<Experience>();
         public ICollection<Prediction> Predictions { get; set; } = new List<Prediction>();
+        public ICollection<SavedJob> SavedJobs { get; set; } = new List<SavedJob>();
+        public ICollection<SavedResource> SavedResources { get; set; } = new List<SavedResource>();
     }
 }
