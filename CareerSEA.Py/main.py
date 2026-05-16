@@ -31,7 +31,17 @@ ESCO_TITLES_PATH = os.getenv(
         else DEFAULT_CONTAINER_ESCO_TITLES_PATH
     ),
 )
-DEVICE = os.getenv("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
+def _autodetect_device() -> str:
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+DEVICE = os.getenv("DEVICE", _autodetect_device())
+USE_FP16 = os.getenv("USE_FP16", "true" if DEVICE == "cuda" else "false").lower() == "true"
+TORCH_DTYPE = torch.float16 if (USE_FP16 and DEVICE == "cuda") else torch.float32
 BGE_QUERY_PREFIX = os.getenv(
     "BGE_QUERY_PREFIX",
     "Represent this sentence for searching relevant passages: ",
@@ -88,14 +98,27 @@ class ModelService:
     def __init__(self) -> None:
         self.model: Optional[SentenceTransformer] = None
         self.esco_titles: List[str] = []
-        self.esco_embeddings: Optional[np.ndarray] = None
+        self.esco_embeddings: Optional[torch.Tensor] = None
         self.embedding_dim: Optional[int] = None
+        self.device: torch.device = torch.device(DEVICE)
 
     def load(self) -> None:
         if not MODEL_DIR.exists():
             raise RuntimeError(f"MODEL_DIR does not exist: {MODEL_DIR}")
 
-        self.model = SentenceTransformer(str(MODEL_DIR), device=DEVICE)
+        try:
+            self.model = SentenceTransformer(str(MODEL_DIR), device=DEVICE)
+            self.device = torch.device(DEVICE)
+        except Exception:
+            self.model = SentenceTransformer(str(MODEL_DIR), device="cpu")
+            self.device = torch.device("cpu")
+
+        if self.device.type == "cuda" and TORCH_DTYPE == torch.float16:
+            try:
+                self.model = self.model.half()
+            except Exception:
+                pass
+
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
 
         titles_path = Path(ESCO_TITLES_PATH)
@@ -103,7 +126,7 @@ class ModelService:
             self.esco_titles = self._load_esco_titles(titles_path)
 
             if self.esco_titles:
-                self.esco_embeddings = self._encode(self.esco_titles, add_bge_prefix=False)
+                self.esco_embeddings = self._encode_tensor(self.esco_titles, add_bge_prefix=False)
 
     def _load_esco_titles(self, titles_path: Path) -> List[str]:
         if titles_path.suffix.lower() == ".cs":
@@ -143,17 +166,24 @@ class ModelService:
             prepared.append(f"{BGE_QUERY_PREFIX}{cleaned}" if add_bge_prefix else cleaned)
         return prepared
 
-    def _encode(self, texts: List[str], add_bge_prefix: bool = True) -> np.ndarray:
+    def _encode_tensor(self, texts: List[str], add_bge_prefix: bool = True) -> torch.Tensor:
         if self.model is None:
             raise RuntimeError("Model is not loaded.")
         prepared = self._prepare_texts(texts, add_bge_prefix)
         embeddings = self.model.encode(
             prepared,
-            convert_to_numpy=True,
+            convert_to_tensor=True,
             normalize_embeddings=NORMALIZE_EMBEDDINGS,
             show_progress_bar=False,
+            device=str(self.device),
         )
-        return embeddings.astype(np.float32)
+        if embeddings.device != self.device:
+            embeddings = embeddings.to(self.device)
+        return embeddings
+
+    def _encode(self, texts: List[str], add_bge_prefix: bool = True) -> np.ndarray:
+        tensor = self._encode_tensor(texts, add_bge_prefix=add_bge_prefix)
+        return tensor.detach().to("cpu", dtype=torch.float32).numpy()
 
     def embed(self, texts: List[str], add_bge_prefix: bool = True) -> List[List[float]]:
         return self._encode(texts, add_bge_prefix=add_bge_prefix).tolist()
@@ -164,14 +194,19 @@ class ModelService:
                 "ESCO titles are not loaded. Provide ESCO_TITLES_PATH to enable /predict."
             )
 
-        query_embedding = self._encode([text], add_bge_prefix=add_bge_prefix)[0]
-        scores = np.matmul(self.esco_embeddings, query_embedding)
-        k = min(top_k, len(self.esco_titles), MAX_TOP_K)
-        top_indices = np.argpartition(-scores, kth=k - 1)[:k]
-        top_indices = top_indices[np.argsort(-scores[top_indices])]
+        with torch.inference_mode():
+            query = self._encode_tensor([text], add_bge_prefix=add_bge_prefix)[0]
+            corpus = self.esco_embeddings
+            if query.dtype != corpus.dtype:
+                query = query.to(corpus.dtype)
+            scores = torch.matmul(corpus, query)
+            k = min(top_k, len(self.esco_titles), MAX_TOP_K)
+            top_scores, top_indices = torch.topk(scores, k=k, largest=True, sorted=True)
+            top_scores = top_scores.detach().to("cpu", dtype=torch.float32).tolist()
+            top_indices = top_indices.detach().to("cpu").tolist()
 
         return [
-            SearchResult(label=self.esco_titles[idx], score=float(scores[idx]), rank=rank + 1)
+            SearchResult(label=self.esco_titles[idx], score=float(top_scores[rank]), rank=rank + 1)
             for rank, idx in enumerate(top_indices)
         ]
 
