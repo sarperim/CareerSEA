@@ -106,8 +106,26 @@ public class ServerApiClient
     {
         await AddAuthHeader();
         var response = await _client.PostAsJsonAsync("api/SkillGap/analyze", request);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException(await ReadApiErrorAsync(response));
         return await response.Content.ReadFromJsonAsync<SkillGapEnvelopeDTO>(_options);
+    }
+
+    // Surfaces the API's real error ({message, details}) instead of the generic
+    // "status code does not indicate success" that EnsureSuccessStatusCode throws.
+    private static async Task<string> ReadApiErrorAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            if (doc.RootElement.TryGetProperty("details", out var d) && d.GetString() is { Length: > 0 } detail)
+                return detail;
+            if (doc.RootElement.TryGetProperty("message", out var m) && m.GetString() is { Length: > 0 } msg)
+                return msg;
+        }
+        catch { /* non-JSON body: fall back to status code */ }
+
+        return $"Request failed ({(int)response.StatusCode}).";
     }
 
     public async Task<List<ResourceGroupDTO>?> GetResourcesAsync(ResourceRecommendationRequest request)

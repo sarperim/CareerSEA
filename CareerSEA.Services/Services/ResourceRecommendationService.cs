@@ -54,23 +54,18 @@ namespace CareerSEA.Services.Services
             string bestJob, List<string> missingSkills, List<string> userSkills, int maxSkills = 5, int perSkill = 4)
         {
             var grouped = new List<ResourceGroupDTO>();
-            var targetSkills = missingSkills.Take(maxSkills).ToList();
+            var bestJobTitle = bestJob.Trim();
+            var targetSkills = missingSkills
+                .Select(skill => skill.Trim())
+                .Where(skill => !string.IsNullOrWhiteSpace(skill))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(maxSkills)
+                .ToList();
             var source = "missing_skill";
 
             if (!targetSkills.Any())
             {
-                targetSkills = userSkills
-                    .Select(s => s.Trim().ToLowerInvariant())
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Distinct()
-                    .Take(maxSkills)
-                    .ToList();
-                source = "user_skill";
-            }
-
-            if (!targetSkills.Any())
-            {
-                targetSkills = new List<string> { bestJob.Trim() };
+                targetSkills = new List<string> { bestJobTitle };
                 source = "job_title";
             }
 
@@ -79,7 +74,7 @@ namespace CareerSEA.Services.Services
                 var resources = new List<ResourceItemDTO>();
                 try
                 {
-                    var query = $"\"{skill}\" \"{bestJob}\" (site:youtube.com OR site:udemy.com OR site:coursera.org OR site:freecodecamp.org) course tutorial";
+                    var query = $"\"{skill}\" \"{bestJobTitle}\" (site:youtube.com OR site:udemy.com OR site:coursera.org OR site:freecodecamp.org) course tutorial";
                     var rawResults = await SearchBraveAsync(query, 20);
 
                     var seen = new HashSet<string>();

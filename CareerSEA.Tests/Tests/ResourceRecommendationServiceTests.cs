@@ -78,22 +78,22 @@ public class ResourceRecommendationServiceTests
             maxSkills: 5,
             perSkill: 4);
 
-        var resources = (List<Dictionary<string, object>>)result[0]["resources"];
+        var resources = result[0].Resources;
 
         _output.WriteLine($"Assert: Expected 2 filtered resources. Actual count = {resources.Count}");
 
         Assert.Single(result);
-        Assert.Equal("vue.js", result[0]["skill"]);
-        Assert.Equal("missing_skill", result[0]["source"]);
+        Assert.Equal("vue.js", result[0].Skill);
+        Assert.Equal("missing_skill", result[0].Source);
         Assert.Equal(2, resources.Count);
-        Assert.Contains(resources, r => r["provider"].ToString() == "YouTube");
-        Assert.Contains(resources, r => r["provider"].ToString() == "Udemy");
+        Assert.Contains(resources, r => r.Provider == "YouTube");
+        Assert.Contains(resources, r => r.Provider == "Udemy");
     }
 
-    [Fact(DisplayName = "Resource recommendation falls back to user skills when missing skills are empty")]
-    public async Task GenerateResourceRecommendationsAsync_ShouldFallbackToUserSkills_WhenMissingSkillsEmpty()
+    [Fact(DisplayName = "Resource recommendation falls back to best job title when missing skills are empty")]
+    public async Task GenerateResourceRecommendationsAsync_ShouldFallbackToBestJobTitle_WhenMissingSkillsEmpty()
     {
-        _output.WriteLine("Arrange: Mocking Brave search response for fallback to user skills.");
+        _output.WriteLine("Arrange: Mocking Brave search response for fallback to the best job title.");
 
         var braveJson = """
         {
@@ -101,8 +101,8 @@ public class ResourceRecommendationServiceTests
             "results": [
               {
                 "url": "https://www.youtube.com/watch?v=1",
-                "title": "HTML Tutorial",
-                "description": "Learn HTML"
+                "title": "Web Developer Tutorial",
+                "description": "Learn web development"
               }
             ]
           }
@@ -119,11 +119,11 @@ public class ResourceRecommendationServiceTests
             new List<string>(),
             new List<string> { "html" });
 
-        _output.WriteLine($"Assert: Source should be 'user_skill'. Actual source = {result[0]["source"]}");
+        _output.WriteLine($"Assert: Source should be 'job_title'. Actual source = {result[0].Source}");
 
         Assert.Single(result);
-        Assert.Equal("user_skill", result[0]["source"]);
-        Assert.Equal("html", result[0]["skill"]);
+        Assert.Equal("job_title", result[0].Source);
+        Assert.Equal("web developer", result[0].Skill);
     }
 
     [Fact(DisplayName = "Resource recommendation falls back to job title when no skills exist")]
@@ -155,11 +155,11 @@ public class ResourceRecommendationServiceTests
             new List<string>(),
             new List<string>());
 
-        _output.WriteLine($"Assert: Source should be 'job_title'. Actual source = {result[0]["source"]}");
+        _output.WriteLine($"Assert: Source should be 'job_title'. Actual source = {result[0].Source}");
 
         Assert.Single(result);
-        Assert.Equal("job_title", result[0]["source"]);
-        Assert.Equal("web developer", result[0]["skill"]);
+        Assert.Equal("job_title", result[0].Source);
+        Assert.Equal("web developer", result[0].Skill);
     }
 
     [Fact(DisplayName = "Resource recommendation returns a search failed placeholder when HTTP call throws")]
@@ -177,13 +177,13 @@ public class ResourceRecommendationServiceTests
             new List<string> { "react" },
             new List<string>());
 
-        var resources = (List<Dictionary<string, object>>)result[0]["resources"];
+        var resources = result[0].Resources;
 
         _output.WriteLine("Assert: Should return a single fallback resource indicating search failure.");
 
         Assert.Single(resources);
-        Assert.Equal("Search failed", resources[0]["title"]);
-        Assert.Equal("System", resources[0]["provider"]);
-        Assert.Equal(0.0, resources[0]["score"]);
+        Assert.Equal("Search failed", resources[0].Title);
+        Assert.Equal("System", resources[0].Provider);
+        Assert.Equal(0.0, resources[0].Score);
     }
 }

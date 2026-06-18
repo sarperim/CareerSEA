@@ -35,11 +35,10 @@ builder.Services.AddHttpClient<IOnetService, OnetService>(client =>
     var apiKey = builder.Configuration["Onet:ApiKey"];
     if (!string.IsNullOrEmpty(apiKey))
     {
-        var encoded = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(apiKey));
-        client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encoded);
+        client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
     }
     client.DefaultRequestHeaders.Add("Accept", "application/json");
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("CareerSEA/1.0");
 })
 .AddStandardResilienceHandler(); // Leverages Polly for automatic retries
 

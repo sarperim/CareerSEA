@@ -15,8 +15,8 @@ public class SkillGapServiceTests
         _output = output;
     }
 
-    [Fact(DisplayName = "Skill gap analysis throws an exception when occupation is not found")]
-    public async Task GenerateSkillGapAsync_ShouldThrow_WhenOccupationNotFound()
+    [Fact(DisplayName = "Skill gap analysis degrades gracefully when no O*NET occupation is found")]
+    public async Task GenerateSkillGapAsync_ShouldReturnNoMatch_WhenOccupationNotFound()
     {
         _output.WriteLine("Arrange: Creating fake O*NET service with no occupation search results.");
 
@@ -27,10 +27,17 @@ public class SkillGapServiceTests
 
         var service = new SkillGapService(fakeOnet);
 
-        _output.WriteLine("Act + Assert: Generating skill gap for unknown occupation should throw.");
+        _output.WriteLine("Act: Generating skill gap for an unmatched occupation title.");
 
-        await Assert.ThrowsAsync<Exception>(() =>
-            service.GenerateSkillGapAsync("unknown job", new List<string> { "c#" }));
+        var result = await service.GenerateSkillGapAsync("unknown job", new List<string> { "c#" });
+
+        _output.WriteLine($"Assert: MatchType = {result.MatchType}, target skills = {result.TechnologyGap.TargetSkills.Count}");
+
+        Assert.Equal("no_match", result.MatchType);
+        Assert.Empty(result.TechnologyGap.TargetSkills);
+        Assert.Empty(result.TechnologyGap.MatchedSkills);
+        Assert.Empty(result.TechnologyGap.MissingSkills);
+        Assert.Contains("c#", result.UserSkills);
     }
 
     [Fact(DisplayName = "Skill gap analysis separates matched and missing skills correctly")]
@@ -83,6 +90,46 @@ public class SkillGapServiceTests
         Assert.Contains("HTML", matched);
         Assert.Contains("CSS", missing);
         Assert.Contains("React", missing);
+    }
+
+    [Fact(DisplayName = "Skill gap analysis chooses the O*NET occupation closest to the best-match title")]
+    public async Task GenerateSkillGapAsync_ShouldUseClosestOccupationTitle_NotJustFirstSearchResult()
+    {
+        _output.WriteLine("Arrange: Creating fake O*NET search results where the first result is not the closest title match.");
+
+        var fakeOnet = new FakeOnetService
+        {
+            SearchResults = FakeOnetService.ParseArray("""
+            [
+              { "code": "15-1253.00", "title": "Software Quality Assurance Analysts and Testers" },
+              { "code": "15-1252.00", "title": "Software Developers" },
+              { "code": "15-1254.00", "title": "Web Developers" }
+            ]
+            """),
+            TechnologyResults = FakeOnetService.ParseArray("""
+            [
+              {
+                "example": [
+                  { "title": "C#" },
+                  { "title": "SQL" }
+                ]
+              }
+            ]
+            """)
+        };
+
+        var service = new SkillGapService(fakeOnet);
+
+        _output.WriteLine("Act: Generating skill gap for best-match title 'software developer'.");
+
+        var result = await service.GenerateSkillGapAsync("software developer", new List<string> { "c#" });
+
+        _output.WriteLine($"Assert: Selected O*NET code = {result.OnetOccupationCode}, title = {result.OnetOccupationTitle}");
+
+        Assert.Equal("15-1252.00", result.OnetOccupationCode);
+        Assert.Equal("Software Developers", result.OnetOccupationTitle);
+        Assert.Equal("title_match", result.MatchType);
+        Assert.Contains("C#", result.TechnologyGap.MatchedSkills);
     }
 
     [Fact(DisplayName = "Skill gap analysis splits comma-separated user skills correctly")]
@@ -162,8 +209,7 @@ public class SkillGapServiceTests
             "python"
         });
 
-        var gap = (Dictionary<string, object>)result["technology_gap"];
-        var matched = (List<string>)gap["matched_skills"];
+        var matched = result.TechnologyGap.MatchedSkills;
 
         _output.WriteLine($"Assert: Matched skills count should remain 0 or exclude web skills. Actual count = {matched.Count}");
 
@@ -204,8 +250,7 @@ public class SkillGapServiceTests
             "node.js"
         });
 
-        var gap = (Dictionary<string, object>)result["technology_gap"];
-        var matched = (List<string>)gap["matched_skills"];
+        var matched = result.TechnologyGap.MatchedSkills;
 
         _output.WriteLine($"Assert: Node.js should be matched. Matched count = {matched.Count}");
 
@@ -243,9 +288,8 @@ public async Task GenerateSkillGapAsync_ShouldHandleEmptySkillList()
 
     var result = await service.GenerateSkillGapAsync("web developer", new List<string>());
 
-    var gap = (Dictionary<string, object>)result["technology_gap"];
-    var matched = (List<string>)gap["matched_skills"];
-    var missing = (List<string>)gap["missing_skills"];
+    var matched = result.TechnologyGap.MatchedSkills;
+    var missing = result.TechnologyGap.MissingSkills;
 
     _output.WriteLine($"Assert: Matched = {matched.Count}, Missing = {missing.Count}");
 

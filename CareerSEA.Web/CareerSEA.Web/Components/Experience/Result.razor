@@ -51,7 +51,7 @@
                     <MudItem xs="12" sm="4" Class="d-flex flex-column align-center">
                         <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold">BEST MATCH</MudText>
                         <MudText Typo="Typo.h6" Class="font-weight-bold text-capitalize" Color="@GetColorByScore(_data.MatchScore)">
-                            @(_data.BestJob ?? "Unknown")
+                            @(string.IsNullOrWhiteSpace(BestMatchJobTitle) ? "Unknown" : BestMatchJobTitle)
                         </MudText>
 
                         <MudButton Variant="Variant.Outlined"
@@ -59,8 +59,8 @@
                                    Size="Size.Small"
                                    Class="mt-2"
                                    Disabled="@_isLoading"
-                                   OnClick="@(() => SearchJobsAsync(_data.BestJob))">
-                            @(_isLoading && _currentSearchTerm == _data.BestJob ? "Loading..." : "View Openings")
+                                   OnClick="@(() => SearchJobsAsync(BestMatchJobTitle))">
+                            @(_isLoading && _currentSearchTerm == BestMatchJobTitle ? "Loading..." : "View Openings")
                         </MudButton>
                     </MudItem>
 
@@ -176,7 +176,7 @@
                         @if (_skillGap == null && !_isLoadingGap && string.IsNullOrEmpty(_gapError))
                         {
                             <MudText Typo="Typo.body1" Class="mb-4">
-                                Discover which technologies you need to learn to become a <strong>@(_data.BestJob)</strong>.
+                                Discover which technologies you need to learn to become a <strong>@BestMatchJobTitle</strong>.
                             </MudText>
                             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadSkillGapAsync">Analyze My Skills</MudButton>
                         }
@@ -192,8 +192,36 @@
                         }
                         else if (_skillGap != null)
                         {
-                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Target Role: @_skillGap.OnetOccupationTitle</MudText>
+                            // Skills come from the O*NET occupation the server resolved, which may
+                            // differ from the dashboard best match when there's no exact O*NET title.
+                            // Label the card with that occupation so matched/missing skills stay consistent.
+                            var skillGapRole = string.IsNullOrWhiteSpace(_skillGap.OnetOccupationTitle)
+                                ? BestMatchJobTitle
+                                : _skillGap.OnetOccupationTitle;
+                            var isClosestMatch = _skillGap.MatchType == "closest_title_match"
+                                && !string.Equals(skillGapRole, BestMatchJobTitle, StringComparison.OrdinalIgnoreCase);
 
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Target Role: @skillGapRole</MudText>
+
+                            @if (isClosestMatch)
+                            {
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-2">
+                                    Closest O*NET role to your best match <strong>@BestMatchJobTitle</strong>.
+                                    The skills below are for <strong>@skillGapRole</strong>.
+                                </MudText>
+                            }
+
+                            @if (_skillGap.MatchType == "no_match"
+                                 || _skillGap.TechnologyGap?.TargetSkills == null
+                                 || !_skillGap.TechnologyGap.TargetSkills.Any())
+                            {
+                                <MudAlert Severity="Severity.Info" Class="mt-2">
+                                    We couldn't find O*NET technology data for <strong>@BestMatchJobTitle</strong>.
+                                    Try analyzing one of the alternative roles listed above.
+                                </MudAlert>
+                            }
+                            else
+                            {
                             <MudGrid>
                                 <MudItem xs="12" md="6">
                                     <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-success mb-2">Matched Skills</MudText>
@@ -228,6 +256,7 @@
                                     }
                                 </MudItem>
                             </MudGrid>
+                            }
                         }
                     </MudPaper>
                 </div>
@@ -238,10 +267,11 @@
                 <div class="mb-8">
                     <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Recommended Courses</MudText>
                     <MudPaper Outlined="true" Class="pa-6 rounded-lg">
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-3">Target Role: @BestMatchJobTitle</MudText>
                         @if (_resources == null && !_isLoadingResources && string.IsNullOrEmpty(_resourceError))
                         {
                             <MudText Typo="Typo.body1" Class="mb-4">
-                                Find top-rated courses on YouTube, Udemy, and Coursera to fill your skill gaps.
+                                Find top-rated courses for <strong>@BestMatchJobTitle</strong> on YouTube, Udemy, and Coursera.
                             </MudText>
                             <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="LoadResourcesAsync">Find Courses</MudButton>
                         }
@@ -322,6 +352,8 @@
     private HashSet<string> _savedResourceUrls = new();
     private Dictionary<string, Guid> _savedJobIdsByLink = new();
     private Dictionary<string, Guid> _savedResourceIdsByUrl = new();
+
+    private string BestMatchJobTitle => _data?.BestJob?.Trim() ?? string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -430,7 +462,8 @@
 
     private async Task LoadSkillGapAsync()
     {
-        if (_data == null || string.IsNullOrWhiteSpace(_data.BestJob)) return;
+        var bestMatchJobTitle = BestMatchJobTitle;
+        if (_data == null || string.IsNullOrWhiteSpace(bestMatchJobTitle)) return;
 
         _isLoadingGap = true;
         _gapError = "";
@@ -443,7 +476,7 @@
 
             _skillGap = await ApiClient.GetSkillGapAsync(new SkillGapRequest
             {
-                BestJob = _data.BestJob,
+                BestJob = bestMatchJobTitle,
                 UserSkills = userSkills
             });
         }
@@ -460,7 +493,8 @@
 
     private async Task LoadResourcesAsync()
     {
-        if (_data == null || string.IsNullOrWhiteSpace(_data.BestJob)) return;
+        var bestMatchJobTitle = BestMatchJobTitle;
+        if (_data == null || string.IsNullOrWhiteSpace(bestMatchJobTitle)) return;
 
         _isLoadingResources = true;
         _resourceError = "";
@@ -472,7 +506,7 @@
 
             _resources = await ApiClient.GetResourcesAsync(new ResourceRecommendationRequest
             {
-                BestJob = _data.BestJob,
+                BestJob = bestMatchJobTitle,
                 MissingSkills = missingSkills,
                 UserSkills = _data.UserSkills ?? new List<string>()
             });
